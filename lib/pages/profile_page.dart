@@ -4,6 +4,7 @@ import '../services/api_service.dart';
 import '../services/storage_service.dart';
 import '../models/user_profile_model.dart';
 import 'ubah_profile_page.dart';
+import '../widgets/custommodals.dart';
 
 class ProfilePage extends StatefulWidget {
   const ProfilePage({super.key});
@@ -240,7 +241,7 @@ class _ProfilePageState extends State<ProfilePage> {
                               icon: 'assets/images/ubah-password-icon.png',
                               title: 'Ubah Password',
                               onTap: () {
-                                // TODO: Navigate to change password page
+                                Navigator.pushNamed(context, '/ubah-password');
                               },
                             ),
                             
@@ -394,9 +395,11 @@ class _ProfilePageState extends State<ProfilePage> {
                 
                 // Implement logout logic
                 try {
+                  print('🔄 DEBUG: Starting logout process');
                   // Clear all login data from storage
                   await _storageService.clearLoginData();
                   
+                  print('✅ DEBUG: Logout successful, navigating to login');
                   // Navigate to login page and clear navigation stack
                   if (mounted) {
                     Navigator.of(context).pushNamedAndRemoveUntil(
@@ -405,14 +408,10 @@ class _ProfilePageState extends State<ProfilePage> {
                     );
                   }
                 } catch (e) {
+                  print('🚨 DEBUG: Error during logout: $e');
                   // Handle logout error
                   if (mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text('Error saat logout: $e'),
-                        backgroundColor: Colors.red,
-                      ),
-                    );
+                    CustomModals.showErrorModal(context, 'Error saat logout: $e');
                   }
                 }
               },

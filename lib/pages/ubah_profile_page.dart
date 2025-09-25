@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import '../services/api_service.dart';
 import '../services/storage_service.dart';
 import '../models/user_profile_model.dart';
+import '../widgets/custommodals.dart';
 
 class UbahProfilePage extends StatefulWidget {
   const UbahProfilePage({super.key});
@@ -114,27 +115,89 @@ class _UbahProfilePageState extends State<UbahProfilePage> {
   }
 
   Future<void> _saveProfile() async {
-    // TODO: Implement save profile API call
+    print('🔄 DEBUG: Starting profile save validation');
+    
+    // Validasi form sebelum submit
+    if (_namaController.text.trim().isEmpty) {
+      print('❌ DEBUG: Nama validation failed');
+      CustomModals.showErrorModal(context, 'Nama tidak boleh kosong');
+      return;
+    }
+
+    if (_emailController.text.trim().isEmpty) {
+      print('❌ DEBUG: Email validation failed');
+      CustomModals.showErrorModal(context, 'Email tidak boleh kosong');
+      return;
+    }
+
+    if (_nomorHpController.text.trim().isEmpty) {
+      print('❌ DEBUG: Nomor HP validation failed');
+      CustomModals.showErrorModal(context, 'Nomor HP tidak boleh kosong');
+      return;
+    }
+
     setState(() {
       _isSaving = true;
+      _errorMessage = '';
     });
     
-    // Simulate API call
-    await Future.delayed(const Duration(seconds: 2));
-    
-    setState(() {
-      _isSaving = false;
-    });
-    
-    // Show success message
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Profil berhasil disimpan'),
-          backgroundColor: Color(0xFF059669),
-        ),
-      );
-      Navigator.pop(context);
+    try {
+      print('🔍 DEBUG: Starting profile update...');
+      
+      // Get token from storage
+      final token = await _storageService.getToken();
+      if (token == null) {
+        print('❌ DEBUG: Token not found');
+        throw Exception('Token tidak ditemukan. Silakan login kembali.');
+      }
+
+      // Prepare request body sesuai spesifikasi
+      final requestBody = {
+        "name": _namaController.text.trim(),
+        "idNumber": _ktpController.text.trim(),
+        "phoneNumber": _nomorHpController.text.trim(),
+        "userEmail": _emailController.text.trim(),
+        "address": _alamatController.text.trim(),
+      };
+
+      print('🔍 DEBUG: Request body: $requestBody');
+
+      // Call API update
+      final response = await _apiService.updateUserProfile(token, requestBody);
+      
+      print('🔍 DEBUG: Update response: $response');
+
+      if (response['success'] == true) {
+        print('✅ DEBUG: Profile update successful');
+        // Show success message
+        if (mounted) {
+          CustomModals.showSuccessModal(
+            context,
+            'Profil berhasil disimpan',
+            onOk: () {
+              Navigator.pop(context, true); // Return true to indicate success
+            },
+          );
+        }
+      } else {
+        print('❌ DEBUG: Profile update failed: ${response['message']}');
+        // Show error message from API
+        final errorMessage = response['message'] ?? 'Gagal menyimpan profil';
+        if (mounted) {
+          CustomModals.showErrorModal(context, errorMessage);
+        }
+      }
+    } catch (e) {
+      print('🚨 DEBUG: Error saving profile: $e');
+      if (mounted) {
+        CustomModals.showErrorModal(context, 'Terjadi kesalahan: ${e.toString()}');
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isSaving = false;
+        });
+      }
     }
   }
 

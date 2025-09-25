@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 import 'login_with_code_page.dart';
+import 'otp_verification_page.dart';
+import '../services/api_service.dart';
+import '../widgets/custommodals.dart';
 
 class RegisterPage extends StatefulWidget {
   const RegisterPage({Key? key}) : super(key: key);
@@ -19,6 +22,16 @@ class _RegisterPageState extends State<RegisterPage> {
   
   bool _isPasswordVisible = false;
   bool _isConfirmPasswordVisible = false;
+  bool _isLoading = false;
+  
+  final ApiService _apiService = ApiService();
+  
+  // Variables to store form data
+  String _savedName = '';
+  String _savedIdNumber = '';
+  String _savedEmail = '';
+  String _savedPhoneNumber = '';
+  String _savedPassword = '';
 
   @override
   void dispose() {
@@ -29,6 +42,176 @@ class _RegisterPageState extends State<RegisterPage> {
     _passwordController.dispose();
     _confirmPasswordController.dispose();
     super.dispose();
+  }
+
+  bool _validateForm() {
+    print('🔄 DEBUG: Starting form validation');
+    
+    // Check for empty fields and show specific error messages
+    if (_namaController.text.trim().isEmpty) {
+      print('❌ DEBUG: Nama field is empty');
+      CustomModals.showErrorModal(context, 'Kolom Nama masih kosong, harap dilengkapi terlebih dahulu!');
+      return false;
+    }
+    
+    if (_ktpController.text.trim().isEmpty) {
+      print('❌ DEBUG: No KTP field is empty');
+      CustomModals.showErrorModal(context, 'Kolom No KTP masih kosong, harap dilengkapi terlebih dahulu!');
+      return false;
+    }
+    
+    if (_emailController.text.trim().isEmpty) {
+      print('❌ DEBUG: Email field is empty');
+      CustomModals.showErrorModal(context, 'Kolom Email masih kosong, harap dilengkapi terlebih dahulu!');
+      return false;
+    }
+    
+    if (_phoneController.text.trim().isEmpty) {
+      print('❌ DEBUG: Phone number field is empty');
+      CustomModals.showErrorModal(context, 'Kolom No Handphone masih kosong, harap dilengkapi terlebih dahulu!');
+      return false;
+    }
+    
+    // Validate phone number length (minimum 12 digits)
+    if (_phoneController.text.trim().length < 12) {
+      print('❌ DEBUG: Phone number too short');
+      CustomModals.showErrorModal(context, 'No Handphone minimal harus 12 angka!');
+      return false;
+    }
+    
+    if (_passwordController.text.trim().isEmpty) {
+      print('❌ DEBUG: Password field is empty');
+      CustomModals.showErrorModal(context, 'Kolom Password masih kosong, harap dilengkapi terlebih dahulu!');
+      return false;
+    }
+    
+    // Validate password complexity
+    String password = _passwordController.text;
+    if (password.length < 8) {
+      print('❌ DEBUG: Password too short');
+      CustomModals.showErrorModal(context, 'Password minimal harus 8 karakter!');
+      return false;
+    }
+    
+    // Check for uppercase letter
+    if (!password.contains(RegExp(r'[A-Z]'))) {
+      print('❌ DEBUG: Password missing uppercase');
+      CustomModals.showErrorModal(context, 'Password harus mengandung minimal 1 huruf besar!');
+      return false;
+    }
+    
+    // Check for lowercase letter
+    if (!password.contains(RegExp(r'[a-z]'))) {
+      print('❌ DEBUG: Password missing lowercase');
+      CustomModals.showErrorModal(context, 'Password harus mengandung minimal 1 huruf kecil!');
+      return false;
+    }
+    
+    // Check for number
+    if (!password.contains(RegExp(r'[0-9]'))) {
+      print('❌ DEBUG: Password missing number');
+      CustomModals.showErrorModal(context, 'Password harus mengandung minimal 1 angka!');
+      return false;
+    }
+    
+    if (_confirmPasswordController.text.trim().isEmpty) {
+      print('❌ DEBUG: Confirm password field is empty');
+      CustomModals.showErrorModal(context, 'Kolom Konfirmasi Password masih kosong, harap dilengkapi terlebih dahulu!');
+      return false;
+    }
+
+    // Check if passwords match
+    if (_passwordController.text != _confirmPasswordController.text) {
+      print('❌ DEBUG: Password confirmation mismatch');
+      CustomModals.showErrorModal(context, 'Password dan konfirmasi password tidak sama');
+      return false;
+    }
+
+    print('✅ DEBUG: Form validation successful');
+    return true;
+  }
+
+  void _saveFormData() {
+    print('💾 DEBUG: Saving form data');
+    _savedName = _namaController.text.trim();
+    _savedIdNumber = _ktpController.text.trim();
+    _savedEmail = _emailController.text.trim();
+    _savedPhoneNumber = _phoneController.text.trim();
+    _savedPassword = _passwordController.text;
+    
+    print('📝 DEBUG: Saved data - Name: $_savedName, Email: $_savedEmail, Phone: $_savedPhoneNumber');
+  }
+
+  void _handleRegister() async {
+    print('🚀 DEBUG: Register button pressed');
+    
+    if (!_validateForm()) {
+      return;
+    }
+
+    _saveFormData();
+    
+    // Show verification modal
+    CustomModals.showVerificationModal(
+      context,
+      phoneNumber: _savedPhoneNumber,
+      email: _savedEmail,
+      onSendVerification: _sendVerificationCode,
+    );
+  }
+
+  Future<void> _sendVerificationCode() async {
+    print('📤 DEBUG: Sending verification code');
+    
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      // First, send verification code (OTP) - DON'T register user yet
+      print('📧 DEBUG: Sending OTP verification code first');
+      final verificationResponse = await _apiService.registerVerification(
+        name: _savedName,
+        email: _savedEmail,
+        phoneNumber: _savedPhoneNumber,
+      );
+
+      print('📥 DEBUG: Verification response: $verificationResponse');
+
+      if (verificationResponse['success'] == true) {
+        print('✅ DEBUG: Verification code sent successfully');
+        
+        // Close modal and navigate to OTP page
+        Navigator.of(context).pop(); // Close modal
+        Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (context) => OtpVerificationPage(
+              email: _savedEmail,
+              phoneNumber: _savedPhoneNumber,
+              // Pass the form data to OTP page so it can register after verification
+              registrationData: {
+                'name': _savedName,
+                'idNumber': _savedIdNumber,
+                'userEmail': _savedEmail,
+                'phoneNumber': _savedPhoneNumber,
+                'password': _savedPassword,
+                'address': '',
+              },
+            ),
+          ),
+        );
+      } else {
+        print('❌ DEBUG: Failed to send verification code: ${verificationResponse['message']}');
+        CustomModals.showErrorModal(context, verificationResponse['message'] ?? 'Gagal mengirim kode verifikasi');
+      }
+    } catch (e) {
+      print('🚨 DEBUG: Error during verification: $e');
+      CustomModals.showErrorModal(context, 'Terjadi kesalahan saat mengirim kode verifikasi');
+    } finally {
+      setState(() {
+        _isLoading = false;
+      });
+    }
   }
 
   @override
@@ -293,9 +476,7 @@ class _RegisterPageState extends State<RegisterPage> {
                 width: double.infinity,
                 height: 50,
                 child: ElevatedButton(
-                  onPressed: () {
-                    // Handle registration logic here
-                  },
+                  onPressed: _isLoading ? null : _handleRegister,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFF1B8B7A),
                     shape: RoundedRectangleBorder(
@@ -303,14 +484,23 @@ class _RegisterPageState extends State<RegisterPage> {
                     ),
                     elevation: 0,
                   ),
-                  child: const Text(
-                    'Daftar',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 16,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
+                  child: _isLoading
+                      ? const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(
+                            valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                            strokeWidth: 2,
+                          ),
+                        )
+                      : const Text(
+                          'Daftar',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
                 ),
               ),
               const SizedBox(height: 30),

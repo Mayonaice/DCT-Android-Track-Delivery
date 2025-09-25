@@ -146,9 +146,16 @@ class ApiService {
   }
 
   // Generic GET request with token
-  Future<Map<String, dynamic>> get(String endpoint, {String? token}) async {
+  Future<Map<String, dynamic>> get(String endpoint, {String? token, Map<String, String>? queryParams}) async {
     try {
-      final url = Uri.parse('${Config.baseUrl}$endpoint');
+      Uri url;
+      if (queryParams != null && queryParams.isNotEmpty) {
+        url = Uri.parse('${Config.baseUrl}$endpoint').replace(queryParameters: queryParams);
+      } else {
+        url = Uri.parse('${Config.baseUrl}$endpoint');
+      }
+      
+      print('🔍 DEBUG: GET URL: $url');
       
       Map<String, String> headers = {
         'Content-Type': 'application/json',
@@ -159,8 +166,36 @@ class ApiService {
         headers['Authorization'] = 'Bearer $token';
       }
 
+      print('🔍 DEBUG: GET Headers: $headers');
+
       final response = await http.get(url, headers: headers);
-      final responseData = jsonDecode(response.body);
+      
+      print('🔍 DEBUG: GET Response status: ${response.statusCode}');
+      print('🔍 DEBUG: GET Response body: ${response.body}');
+
+      // Handle empty response
+      if (response.body.isEmpty) {
+        print('🚨 DEBUG: Server returned empty response!');
+        return {
+          'success': false,
+          'message': 'Server mengembalikan response kosong',
+          'data': null,
+        };
+      }
+
+      // Try to parse JSON response
+      Map<String, dynamic> responseData;
+      try {
+        responseData = jsonDecode(response.body);
+        print('🔍 DEBUG: Successfully parsed JSON: $responseData');
+      } catch (jsonError) {
+        print('🚨 DEBUG: JSON parsing failed: $jsonError');
+        return {
+          'success': false,
+          'message': 'Server mengembalikan response yang tidak valid: ${jsonError.toString()}',
+          'data': null,
+        };
+      }
 
       if (response.statusCode == 200) {
         return {
@@ -175,6 +210,7 @@ class ApiService {
         };
       }
     } catch (e) {
+      print('🚨 DEBUG: GET request exception: $e');
       return {
         'success': false,
         'message': 'Terjadi kesalahan koneksi: ${e.toString()}',
@@ -183,10 +219,15 @@ class ApiService {
     }
   }
 
-  // Generic POST request with token
-  Future<Map<String, dynamic>> post(String endpoint, Map<String, dynamic> body, {String? token}) async {
+  // Generic POST request with token and optional query parameters
+  Future<Map<String, dynamic>> post(String endpoint, Map<String, dynamic> body, {String? token, Map<String, dynamic>? queryParams}) async {
     try {
-      final url = Uri.parse('${Config.baseUrl}$endpoint');
+      Uri url = Uri.parse('${Config.baseUrl}$endpoint');
+      
+      // Add query parameters if provided
+      if (queryParams != null && queryParams.isNotEmpty) {
+        url = url.replace(queryParameters: queryParams.map((key, value) => MapEntry(key, value.toString())));
+      }
       
       Map<String, String> headers = {
         'Content-Type': 'application/json',
@@ -200,6 +241,9 @@ class ApiService {
       print('🔍 DEBUG: POST URL: $url');
       print('🔍 DEBUG: POST Headers: $headers');
       print('🔍 DEBUG: POST Body: ${jsonEncode(body)}');
+      if (queryParams != null) {
+        print('🔍 DEBUG: POST Query Params: $queryParams');
+      }
 
       final response = await http.post(
         url,
@@ -300,6 +344,232 @@ class ApiService {
       return {
         'success': false,
         'message': 'Terjadi kesalahan saat mengambil data profil: ${e.toString()}',
+        'data': null,
+      };
+    }
+  }
+
+  // Update User Profile API
+  Future<Map<String, dynamic>> updateUserProfile(String token, Map<String, dynamic> profileData) async {
+    try {
+      print('🔍 DEBUG: Updating user profile with data: $profileData');
+      
+      final response = await post('Users/Profile', profileData, token: token);
+      
+      print('🔍 DEBUG: Update profile response: $response');
+      return response;
+    } catch (e) {
+      print('🚨 DEBUG: Error updating profile: $e');
+      return {
+        'success': false,
+        'message': 'Terjadi kesalahan saat memperbarui profil: ${e.toString()}',
+        'data': null,
+      };
+    }
+  }
+
+  // Change Password API
+  Future<Map<String, dynamic>> changePassword(String token, String oldPassword, String newPassword) async {
+    try {
+      print('🔍 DEBUG: Changing password...');
+      print('🔍 DEBUG: Old password length: ${oldPassword.length}');
+      print('🔍 DEBUG: New password length: ${newPassword.length}');
+      
+      // Membuat URL dengan query parameters sesuai spesifikasi
+      final endpoint = 'Users/ChangePassword?OldPassword=${Uri.encodeComponent(oldPassword)}&NewPassword=${Uri.encodeComponent(newPassword)}';
+      print('🔍 DEBUG: Change password endpoint: $endpoint');
+      
+      final response = await post(endpoint, {}, token: token);
+      
+      print('🔍 DEBUG: Change password full response: $response');
+      print('🔍 DEBUG: Response success field: ${response['success']}');
+      print('🔍 DEBUG: Response message field: ${response['message']}');
+      print('🔍 DEBUG: Response data field: ${response['data']}');
+      
+      // Periksa apakah response berhasil
+      if (response['success'] == true) {
+        // Periksa data response untuk menentukan apakah operasi benar-benar berhasil
+        if (response['data'] != null && response['data'] is Map) {
+          final data = response['data'] as Map<String, dynamic>;
+          print('🔍 DEBUG: Response data content: $data');
+          
+          // Periksa field 'ok' untuk menentukan status sebenarnya
+          if (data.containsKey('ok')) {
+            final isOk = data['ok'];
+            if (isOk == true) {
+              print('✅ DEBUG: Password change successful - API returned ok: true');
+              return {
+                'success': true,
+                'message': data['message'] ?? 'Password berhasil diubah',
+                'data': data,
+              };
+            } else {
+              print('❌ DEBUG: Password change failed - API returned ok: false');
+              return {
+                'success': false,
+                'message': data['message'] ?? 'Gagal mengubah password',
+                'data': data,
+              };
+            }
+          }
+          
+          // Jika tidak ada field 'ok', periksa apakah ada field 'error' yang menunjukkan error
+          if (data.containsKey('error') && data['error'] != null && data['error'].toString().isNotEmpty) {
+            final errorMessage = data['error'];
+            print('🚨 DEBUG: Found error in response data: $errorMessage');
+            return {
+              'success': false,
+              'message': errorMessage.toString(),
+              'data': data,
+            };
+          }
+        }
+        
+        print('✅ DEBUG: Password change successful - default success handling');
+        return response;
+      } else {
+        print('❌ DEBUG: Password change failed with message: ${response['message']}');
+        return response;
+      }
+    } catch (e) {
+      print('🚨 DEBUG: Error changing password: $e');
+      return {
+        'success': false,
+        'message': 'Terjadi kesalahan saat mengubah password: ${e.toString()}',
+        'data': null,
+      };
+    }
+  }
+
+  // Register user
+  Future<Map<String, dynamic>> register({
+    required String name,
+    required String idNumber,
+    required String userEmail,
+    required String phoneNumber,
+    required String password,
+    String address = "",
+  }) async {
+    try {
+      print('🔄 DEBUG: Starting user registration');
+      print('📧 DEBUG: Email: $userEmail');
+      print('📱 DEBUG: Phone: $phoneNumber');
+      print('👤 DEBUG: Name: $name');
+      
+      final body = {
+        "name": name,
+        "idNumber": idNumber,
+        "userEmail": userEmail,
+        "phoneNumber": phoneNumber,
+        "password": password,
+        "address": address,
+      };
+      
+      print('📤 DEBUG: Register request body: $body');
+      
+      final response = await post('Users/Register', body);
+      
+      print('📥 DEBUG: Register response: $response');
+      
+      if (response['success'] == true) {
+        print('✅ DEBUG: Registration successful');
+        return response;
+      } else {
+        print('❌ DEBUG: Registration failed with message: ${response['message']}');
+        return response;
+      }
+    } catch (e) {
+      print('🚨 DEBUG: Error during registration: $e');
+      return {
+        'success': false,
+        'message': 'Terjadi kesalahan saat mendaftar: ${e.toString()}',
+        'data': null,
+      };
+    }
+  }
+
+  // Register verification - send OTP
+  Future<Map<String, dynamic>> registerVerification({
+    required String name,
+    required String email,
+    required String phoneNumber,
+  }) async {
+    try {
+      print('🔄 DEBUG: Starting register verification');
+      print('📧 DEBUG: Email: $email');
+      print('📱 DEBUG: Phone: $phoneNumber');
+      print('👤 DEBUG: Name: $name');
+      
+      final queryParams = {
+        'Name': name,
+        'Email': email,
+        'PhoneNumber': phoneNumber,
+      };
+      
+      print('📤 DEBUG: Register verification query params: $queryParams');
+      
+      final response = await post(
+        'Users/RegisterVerification',
+        {}, // Empty body since we're using query parameters
+        queryParams: queryParams,
+      );
+      
+      print('📥 DEBUG: Register verification response: $response');
+      
+      if (response['success'] == true) {
+        print('✅ DEBUG: Register verification successful - OTP sent');
+        return response;
+      } else {
+        print('❌ DEBUG: Register verification failed with message: ${response['message']}');
+        return response;
+      }
+    } catch (e) {
+      print('🚨 DEBUG: Error during register verification: $e');
+      return {
+        'success': false,
+        'message': 'Terjadi kesalahan saat mengirim kode verifikasi: ${e.toString()}',
+        'data': null,
+      };
+    }
+  }
+
+  // OTP verification
+  Future<Map<String, dynamic>> otpVerification({
+    required String otp,
+    required String email,
+  }) async {
+    try {
+      print('🔄 DEBUG: Starting OTP verification');
+      print('📧 DEBUG: Email: $email');
+      print('🔢 DEBUG: OTP: $otp');
+      
+      final queryParams = {
+        'OTP': otp,
+        'Email': email,
+      };
+      
+      print('📤 DEBUG: OTP verification query params: $queryParams');
+      
+      final response = await post(
+        'Users/OTPVerification',
+        {}, // Empty body since we're using query parameters
+        queryParams: queryParams,
+      );
+      
+      print('📥 DEBUG: OTP verification response: $response');
+      
+      if (response['success'] == true) {
+        print('✅ DEBUG: OTP verification successful');
+        return response;
+      } else {
+        print('❌ DEBUG: OTP verification failed with message: ${response['message']}');
+        return response;
+      }
+    } catch (e) {
+      print('🚨 DEBUG: Error during OTP verification: $e');
+      return {
+        'success': false,
+        'message': 'Terjadi kesalahan saat verifikasi OTP: ${e.toString()}',
         'data': null,
       };
     }

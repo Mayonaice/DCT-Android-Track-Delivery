@@ -4,6 +4,7 @@ import 'pages/login_with_code_page.dart';
 import 'pages/check_delivery_page.dart';
 import 'pages/register_page.dart';
 import 'pages/home_page.dart';
+import 'pages/ubah_password_page.dart';
 import 'services/api_service.dart';
 import 'services/storage_service.dart';
 import 'widgets/custommodals.dart';
@@ -27,6 +28,7 @@ class MyApp extends StatelessWidget {
       routes: {
         '/login-with-code': (context) => const LoginWithCodePage(),
         '/check-delivery': (context) => const CheckDeliveryPage(),
+        '/ubah-password': (context) => const UbahPasswordPage(),
       },
       debugShowCheckedModeBanner: false,
     );

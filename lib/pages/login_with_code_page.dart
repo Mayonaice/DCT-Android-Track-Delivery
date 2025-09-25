@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import '../widgets/custommodals.dart';
 
 class LoginWithCodePage extends StatefulWidget {
   const LoginWithCodePage({super.key});
@@ -99,13 +100,12 @@ class _LoginWithCodePageState extends State<LoginWithCodePage> {
                 height: 56,
                 child: ElevatedButton(
                   onPressed: () {
+                    print('🔄 DEBUG: Login with code button pressed');
                     // Handle login with code logic here
                     HapticFeedback.lightImpact();
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('Login with code functionality will be implemented'),
-                        backgroundColor: Color(0xFF1B8B7A),
-                      ),
+                    CustomModals.showSuccessModal(
+                      context,
+                      'Login with code functionality will be implemented',
                     );
                   },
                   style: ElevatedButton.styleFrom(

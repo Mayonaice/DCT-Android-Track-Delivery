@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import '../widgets/custommodals.dart';
 
 class CheckDeliveryPage extends StatefulWidget {
   const CheckDeliveryPage({super.key});
@@ -99,13 +100,12 @@ class _CheckDeliveryPageState extends State<CheckDeliveryPage> {
                 height: 56,
                 child: ElevatedButton(
                   onPressed: () {
+                    print('🔄 DEBUG: Check delivery button pressed');
                     // Handle check delivery logic here
                     HapticFeedback.lightImpact();
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('Check delivery functionality will be implemented'),
-                        backgroundColor: Color(0xFF1B8B7A),
-                      ),
+                    CustomModals.showSuccessModal(
+                      context,
+                      'Check delivery functionality will be implemented',
                     );
                   },
                   style: ElevatedButton.styleFrom(
