@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../services/api_service.dart';
@@ -24,9 +25,23 @@ class _OtpVerificationPageState extends State<OtpVerificationPage> {
   final List<FocusNode> _focusNodes = List.generate(6, (index) => FocusNode());
   final ApiService _apiService = ApiService();
   bool _isLoading = false;
+  bool _hasError = false; // Add error state
+  String _errorMessage = ''; // Add error message
+  
+  // Countdown timer variables
+  Timer? _countdownTimer;
+  int _countdownSeconds = 60; // 1 minute countdown
+  bool _canResendOtp = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _startCountdownTimer();
+  }
 
   @override
   void dispose() {
+    _countdownTimer?.cancel();
     for (var controller in _otpControllers) {
       controller.dispose();
     }
@@ -34,6 +49,92 @@ class _OtpVerificationPageState extends State<OtpVerificationPage> {
       focusNode.dispose();
     }
     super.dispose();
+  }
+
+  void _startCountdownTimer() {
+    setState(() {
+      _countdownSeconds = 60;
+      _canResendOtp = false;
+    });
+    
+    _countdownTimer?.cancel();
+    _countdownTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      setState(() {
+        if (_countdownSeconds > 0) {
+          _countdownSeconds--;
+        } else {
+          _canResendOtp = true;
+          timer.cancel();
+        }
+      });
+    });
+  }
+
+  Future<void> _resendOtp() async {
+    if (!_canResendOtp || _isLoading) return;
+
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      print('🔄 DEBUG: Resending OTP verification code');
+      
+      // Call RegisterVerification API to resend OTP
+      final response = await _apiService.registerVerification(
+        name: widget.registrationData?['name'] ?? '',
+        email: widget.email,
+        phoneNumber: widget.phoneNumber,
+      );
+
+      print('📥 DEBUG: Resend OTP response: $response');
+
+      if (response['success'] == true) {
+        print('✅ DEBUG: OTP resent successfully');
+        
+        // Clear current OTP inputs
+        for (var controller in _otpControllers) {
+          controller.clear();
+        }
+        
+        // Reset error state
+        setState(() {
+          _hasError = false;
+          _errorMessage = '';
+        });
+        
+        // Restart countdown timer
+        _startCountdownTimer();
+        
+        // Show success message
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Kode OTP baru telah dikirim'),
+            backgroundColor: Color(0xFF1B8B7A),
+          ),
+        );
+      } else {
+        print('❌ DEBUG: Failed to resend OTP: ${response['message']}');
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(response['message'] ?? 'Gagal mengirim ulang kode OTP'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } catch (e) {
+      print('🚨 DEBUG: Error resending OTP: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Terjadi kesalahan saat mengirim ulang kode OTP'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    } finally {
+      setState(() {
+        _isLoading = false;
+      });
+    }
   }
 
   String _getOtpCode() {
@@ -45,6 +146,14 @@ class _OtpVerificationPageState extends State<OtpVerificationPage> {
   }
 
   void _onOtpChanged(String value, int index) {
+    // Reset error state when user starts typing
+    if (_hasError) {
+      setState(() {
+        _hasError = false;
+        _errorMessage = '';
+      });
+    }
+    
     if (value.isNotEmpty && index < 5) {
       _focusNodes[index + 1].requestFocus();
     }
@@ -69,6 +178,8 @@ class _OtpVerificationPageState extends State<OtpVerificationPage> {
 
     setState(() {
       _isLoading = true;
+      _hasError = false; // Reset error state
+      _errorMessage = ''; // Reset error message
     });
 
     try {
@@ -85,6 +196,12 @@ class _OtpVerificationPageState extends State<OtpVerificationPage> {
 
       if (response['success'] == true) {
         print('✅ DEBUG: OTP verification successful');
+        
+        // Reset error state on success
+        setState(() {
+          _hasError = false;
+          _errorMessage = '';
+        });
         
         // If registration data is provided, register the user after OTP verification
         if (widget.registrationData != null) {
@@ -127,11 +244,23 @@ class _OtpVerificationPageState extends State<OtpVerificationPage> {
         }
       } else {
         print('❌ DEBUG: OTP verification failed: ${response['message']}');
-        CustomModals.showErrorModal(context, response['message'] ?? 'Verifikasi OTP gagal');
+        
+        // Set error state and message
+        setState(() {
+          _hasError = true;
+          _errorMessage = response['message'] ?? 'Kode OTP tidak valid';
+        });
+        
+        // Don't show modal, just update UI with red outline and error message
       }
     } catch (e) {
       print('🚨 DEBUG: Error during OTP verification: $e');
-      CustomModals.showErrorModal(context, 'Terjadi kesalahan saat verifikasi OTP');
+      
+      // Set error state for network/system errors
+      setState(() {
+        _hasError = true;
+        _errorMessage = 'Terjadi kesalahan saat verifikasi OTP';
+      });
     } finally {
       setState(() {
         _isLoading = false;
@@ -199,9 +328,11 @@ class _OtpVerificationPageState extends State<OtpVerificationPage> {
                   height: 45,
                   decoration: BoxDecoration(
                     border: Border.all(
-                      color: _otpControllers[index].text.isNotEmpty 
-                          ? const Color(0xFF1B8B7A) 
-                          : const Color(0xFFE5E7EB),
+                      color: _hasError 
+                          ? Colors.red // Red border when there's an error
+                          : (_otpControllers[index].text.isNotEmpty 
+                              ? const Color(0xFF1B8B7A) 
+                              : const Color(0xFFE5E7EB)),
                       width: 1.5,
                     ),
                     borderRadius: BorderRadius.circular(8),
@@ -243,14 +374,35 @@ class _OtpVerificationPageState extends State<OtpVerificationPage> {
                 );
               }),
             ),
+            
+            // Error message below OTP boxes
+            if (_hasError && _errorMessage.isNotEmpty) ...[
+              const SizedBox(height: 16),
+              Text(
+                _errorMessage,
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  fontSize: 14,
+                  color: Colors.red,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ],
+            
             const SizedBox(height: 40),
             
-            // Resend Code Timer
-            const Text(
-              'Kirim Ulang Kode dalam 10:00',
-              style: TextStyle(
-                fontSize: 14,
-                color: Color(0xFF6B7280),
+            // Resend Code Timer/Button
+            GestureDetector(
+              onTap: _canResendOtp ? _resendOtp : null,
+              child: Text(
+                _canResendOtp 
+                    ? 'Kirim Ulang Kode OTP'
+                    : 'Kirim Ulang Kode dalam ${_countdownSeconds ~/ 60}:${(_countdownSeconds % 60).toString().padLeft(2, '0')}',
+                style: TextStyle(
+                  fontSize: 14,
+                  color: _canResendOtp ? const Color(0xFF1B8B7A) : const Color(0xFF6B7280),
+                  fontWeight: _canResendOtp ? FontWeight.w600 : FontWeight.normal,
+                ),
               ),
             ),
             const SizedBox(height: 40),

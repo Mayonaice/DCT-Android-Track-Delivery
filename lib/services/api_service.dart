@@ -282,8 +282,12 @@ class ApiService {
       }
 
       if (response.statusCode == 200) {
+        // Check if response has 'ok' field and use it for success determination
+        bool isSuccess = responseData['ok'] ?? true; // Default to true if 'ok' field doesn't exist
+        
         return {
-          'success': true,
+          'success': isSuccess,
+          'message': responseData['message'] ?? (isSuccess ? 'Request berhasil' : 'Request gagal'),
           'data': responseData,
         };
       } else {
