@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../widgets/custommodals.dart';
+import '../services/api_service.dart';
+import 'check_delivery_detail_page.dart';
 
 class CheckDeliveryPage extends StatefulWidget {
   const CheckDeliveryPage({super.key});
@@ -11,6 +13,8 @@ class CheckDeliveryPage extends StatefulWidget {
 
 class _CheckDeliveryPageState extends State<CheckDeliveryPage> {
   final TextEditingController _deliveryCodeController = TextEditingController();
+  final ApiService _apiService = ApiService();
+  bool _isLoading = false;
 
   @override
   void dispose() {
@@ -99,14 +103,59 @@ class _CheckDeliveryPageState extends State<CheckDeliveryPage> {
                 width: double.infinity,
                 height: 56,
                 child: ElevatedButton(
-                  onPressed: () {
+                  onPressed: _isLoading ? null : () async {
                     print('🔄 DEBUG: Check delivery button pressed');
-                    // Handle check delivery logic here
-                    HapticFeedback.lightImpact();
-                    CustomModals.showSuccessModal(
-                      context,
-                      'Check delivery functionality will be implemented',
-                    );
+                    
+                    // Validate delivery code input
+                    if (_deliveryCodeController.text.trim().isEmpty) {
+                      CustomModals.showErrorModal(
+                        context,
+                        'Silakan masukkan kode pengiriman',
+                      );
+                      return;
+                    }
+                    
+                    // Show loading state
+                    setState(() {
+                      _isLoading = true;
+                    });
+                    
+                    try {
+                      // Validate delivery code with API first
+                      final response = await _apiService.getDeliveryDetail(_deliveryCodeController.text.trim());
+                      
+                      setState(() {
+                        _isLoading = false;
+                      });
+                      
+                      if (response != null && response.ok && response.data != null) {
+                        // Valid delivery code, navigate to detail page
+                        HapticFeedback.lightImpact();
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => CheckDeliveryDetailPage(
+                              deliveryCode: _deliveryCodeController.text.trim(),
+                            ),
+                          ),
+                        );
+                      } else {
+                        // Invalid delivery code, show error modal
+                        CustomModals.showErrorModal(
+                          context,
+                          'Kode Pengiriman tidak valid atau tidak ada',
+                        );
+                      }
+                    } catch (e) {
+                      setState(() {
+                        _isLoading = false;
+                      });
+                      
+                      CustomModals.showErrorModal(
+                        context,
+                        'Kode Pengiriman tidak valid',
+                      );
+                    }
                   },
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFF1B8B7A),
@@ -116,13 +165,22 @@ class _CheckDeliveryPageState extends State<CheckDeliveryPage> {
                       borderRadius: BorderRadius.circular(28),
                     ),
                   ),
-                  child: const Text(
-                    'Cek Pengiriman',
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
+                  child: _isLoading 
+                    ? const SizedBox(
+                        width: 24,
+                        height: 24,
+                        child: CircularProgressIndicator(
+                          valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                          strokeWidth: 2,
+                        ),
+                      )
+                    : const Text(
+                        'Cek Pengiriman',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
                 ),
               ),
               const SizedBox(height: 200),

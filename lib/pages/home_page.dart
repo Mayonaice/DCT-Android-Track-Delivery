@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import '../services/storage_service.dart';
 import '../services/api_service.dart';
@@ -7,6 +8,7 @@ import '../models/status_master.dart';
 import '../widgets/status_filter_widget.dart';
 import '../widgets/date_filter_widget.dart';
 import '../widgets/bottom_navigation_widget.dart';
+import '../pages/add_trx_form_page.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({Key? key}) : super(key: key);
@@ -346,7 +348,13 @@ class _HomePageState extends State<HomePage> {
       // Floating Action Button
       floatingActionButton: FloatingActionButton(
         onPressed: () {
-          // Add new delivery action
+          HapticFeedback.lightImpact();
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => const AddTrxFormPage(),
+            ),
+          );
         },
         backgroundColor: const Color(0xFF1B8B7A),
         child: const Icon(

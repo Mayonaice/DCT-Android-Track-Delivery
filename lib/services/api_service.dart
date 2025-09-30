@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import '../config/config.dart';
 import '../models/transaction_model.dart';
+import '../models/delivery_detail_model.dart';
 
 class ApiService {
   static final ApiService _instance = ApiService._internal();
@@ -576,6 +577,93 @@ class ApiService {
         'message': 'Terjadi kesalahan saat verifikasi OTP: ${e.toString()}',
         'data': null,
       };
+    }
+  }
+
+  // Get Delivery Detail API
+  Future<DeliveryDetailResponse?> getDeliveryDetail(String deliveryCode) async {
+    try {
+      print('🔍 DEBUG: Getting delivery detail for code: $deliveryCode');
+      
+      final queryParams = {
+        'DeliveryCode': deliveryCode,
+      };
+      
+      print('📤 DEBUG: Delivery detail query params: $queryParams');
+      
+      final response = await get(
+        'Users/Track',
+        queryParams: queryParams,
+      );
+      
+      print('📥 DEBUG: Delivery detail response: $response');
+      
+      if (response['success'] == true && response['data'] != null) {
+        // Check if data is empty array
+        if (response['data'] is List && (response['data'] as List).isEmpty) {
+          print('❌ DEBUG: Delivery detail returned empty data - invalid delivery code');
+          return DeliveryDetailResponse(
+            ok: false,
+            message: 'Kode Delivery tidak valid',
+            data: null,
+          );
+        }
+        
+        print('✅ DEBUG: Delivery detail retrieved successfully');
+        
+        // The API response has nested structure: response['data']['data']
+        final actualData = response['data']['data'];
+        if (actualData != null) {
+          // Additional validation: check if essential fields are null or empty
+          final status = actualData['status'];
+          final sender = actualData['sender'];
+          final receiver = actualData['recevier']; // Note: API uses 'recevier' (typo)
+          final detailStatus = actualData['detailStatus'];
+          
+          // Check if all essential data is null or empty
+          bool isDataEmpty = (status == null) && 
+                           (sender == null) && 
+                           (receiver == null || (receiver is List && receiver.isEmpty)) &&
+                           (detailStatus == null || (detailStatus is List && detailStatus.isEmpty));
+          
+          if (isDataEmpty) {
+            print('❌ DEBUG: Delivery detail has null/empty essential data - invalid delivery code');
+            return DeliveryDetailResponse(
+              ok: false,
+              message: 'Kode Pengiriman tidak valid atau tidak ada',
+              data: null,
+            );
+          }
+          
+          final deliveryResponse = DeliveryDetailResponse(
+            ok: true,
+            message: 'Data berhasil diambil',
+            data: DeliveryDetailData.fromJson(actualData),
+          );
+          
+          return deliveryResponse;
+        } else {
+          return DeliveryDetailResponse(
+            ok: false,
+            message: 'Data tidak ditemukan',
+            data: null,
+          );
+        }
+      } else {
+        print('❌ DEBUG: Delivery detail failed with message: ${response['message']}');
+        return DeliveryDetailResponse(
+          ok: false,
+          message: response['message'] ?? 'Kode Delivery tidak valid',
+          data: null,
+        );
+      }
+    } catch (e) {
+      print('🚨 DEBUG: Error getting delivery detail: $e');
+      return DeliveryDetailResponse(
+        ok: false,
+        message: 'Terjadi kesalahan saat mengambil detail pengiriman: ${e.toString()}',
+        data: null,
+      );
     }
   }
 }
