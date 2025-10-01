@@ -21,6 +21,11 @@ class _HomePageState extends State<HomePage> {
   final StorageService _storageService = StorageService();
   final ApiService _apiService = ApiService();
   
+  // Search functionality
+  final TextEditingController _searchController = TextEditingController();
+  List<TransactionData> _filteredTransactions = [];
+  bool _isSearching = false;
+  
   String userName = '';
   String userEmail = '';
   
@@ -38,6 +43,62 @@ class _HomePageState extends State<HomePage> {
   void initState() {
     super.initState();
     _loadUserData();
+    _searchController.addListener(_onSearchChanged);
+  }
+
+  @override
+  void dispose() {
+    _searchController.removeListener(_onSearchChanged);
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  void _onSearchChanged() {
+    final query = _searchController.text.toLowerCase().trim();
+    
+    if (query.isEmpty) {
+      setState(() {
+        _isSearching = false;
+        _filteredTransactions = [];
+      });
+    } else {
+      setState(() {
+        _isSearching = true;
+        _filteredTransactions = _searchTransactions(query);
+      });
+    }
+  }
+
+  List<TransactionData> _searchTransactions(String query) {
+    return _transactions.where((transaction) {
+      // Search by consignee name
+      final consigneeName = transaction.consigneeName?.toLowerCase() ?? '';
+      
+      // Search by transaction code
+      final transactionCode = transaction.transactionCode?.toLowerCase() ?? '';
+      
+      // Search by status name
+      final statusName = transaction.statusName?.toLowerCase() ?? '';
+      
+      // Search by formatted date
+      final formattedDate = DateFormat('dd MMM yyyy').format(transaction.transactionDate).toLowerCase();
+      final formattedTime = DateFormat('HH:mm').format(transaction.transactionDate).toLowerCase();
+      
+      // Search by status info name
+      final statusInfo = StatusMaster.getStatusById(transaction.status);
+      final statusInfoName = statusInfo?.name?.toLowerCase() ?? '';
+      
+      return consigneeName.contains(query) ||
+             transactionCode.contains(query) ||
+             statusName.contains(query) ||
+             statusInfoName.contains(query) ||
+             formattedDate.contains(query) ||
+             formattedTime.contains(query);
+    }).toList();
+  }
+
+  List<TransactionData> _getDisplayTransactions() {
+    return _isSearching ? _filteredTransactions : _transactions;
   }
 
   @override
@@ -68,6 +129,12 @@ class _HomePageState extends State<HomePage> {
     if (email.isNotEmpty) {
       _loadTransactions();
     }
+  }
+
+  // Refresh data method for pull-to-refresh
+  Future<void> _refreshData() async {
+    await _loadUserData();
+    await _loadTransactions();
   }
 
   Future<void> _loadTransactions() async {
@@ -104,7 +171,7 @@ class _HomePageState extends State<HomePage> {
 
       final request = TransactionRequest(
         userEmail: userEmail,
-        pageSize: 10,
+        pageSize: 1000,
         status: statusValue,
         tanggalFrom: startDate,
         tanggalEnd: endDate,
@@ -265,8 +332,9 @@ class _HomePageState extends State<HomePage> {
                         ],
                       ),
                       child: TextField(
+                        controller: _searchController,
                         decoration: InputDecoration(
-                          hintText: 'Search something...',
+                          hintText: 'Cari nama penerima, kode pengiriman, status...',
                           hintStyle: TextStyle(
                             color: Colors.grey[400],
                             fontSize: 14,
@@ -275,6 +343,17 @@ class _HomePageState extends State<HomePage> {
                             Icons.search,
                             color: Colors.grey[400],
                           ),
+                          suffixIcon: _isSearching
+                              ? IconButton(
+                                  icon: Icon(
+                                    Icons.clear,
+                                    color: Colors.grey[400],
+                                  ),
+                                  onPressed: () {
+                                    _searchController.clear();
+                                  },
+                                )
+                              : null,
                           border: InputBorder.none,
                           contentPadding: const EdgeInsets.symmetric(
                             horizontal: 20,
@@ -289,75 +368,81 @@ class _HomePageState extends State<HomePage> {
             ),
             // Content Section
             Expanded(
-              child: Padding(
-                padding: const EdgeInsets.all(20.0),
-                child: Column(
-                  children: [
-                    // Filter Buttons
-                    Row(
-                      children: [
-                        _buildFilterButton(
-                          _selectedStatusFilter.label,
-                          true,
-                          () => showStatusFilter(
-                            context,
-                            _selectedStatusFilter,
-                            (option) {
-                              setState(() {
-                                _selectedStatusFilter = option;
-                              });
-                              _loadTransactions();
-                            },
+              child: RefreshIndicator(
+                onRefresh: _refreshData,
+                child: Padding(
+                  padding: const EdgeInsets.all(20.0),
+                  child: Column(
+                    children: [
+                      // Filter Buttons
+                      Row(
+                        children: [
+                          _buildFilterButton(
+                            _selectedStatusFilter.label,
+                            true,
+                            () => showStatusFilter(
+                              context,
+                              _selectedStatusFilter,
+                              (option) {
+                                setState(() {
+                                  _selectedStatusFilter = option;
+                                });
+                                _loadTransactions();
+                              },
+                            ),
                           ),
-                        ),
-                        const SizedBox(width: 12),
-                        _buildFilterButton(
-                          _selectedDateFilter.label,
-                          false,
-                          () => showDateFilter(
-                            context,
-                            _selectedDateFilter,
-                            _customStartDate,
-                            _customEndDate,
-                            (option, startDate, endDate) {
-                              setState(() {
-                                _selectedDateFilter = option;
-                                _customStartDate = startDate;
-                                _customEndDate = endDate;
-                              });
-                              _loadTransactions();
-                            },
+                          const SizedBox(width: 12),
+                          _buildFilterButton(
+                            _selectedDateFilter.label,
+                            false,
+                            () => showDateFilter(
+                              context,
+                              _selectedDateFilter,
+                              _customStartDate,
+                              _customEndDate,
+                              (option, startDate, endDate) {
+                                setState(() {
+                                  _selectedDateFilter = option;
+                                  _customStartDate = startDate;
+                                  _customEndDate = endDate;
+                                });
+                                _loadTransactions();
+                              },
+                            ),
                           ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 20),
-                    // Status List
-                    Expanded(
-                      child: _isLoading
-                          ? const Center(child: CircularProgressIndicator())
-                          : _transactions.isEmpty
-                              ? const Center(
-                                  child: Text(
-                                    'Tidak ada data transaksi',
-                                    style: TextStyle(
-                                      fontSize: 16,
-                                      color: Colors.grey,
+                        ],
+                      ),
+                      const SizedBox(height: 20),
+                      // Status List
+                      Expanded(
+                        child: _isLoading
+                            ? const Center(child: CircularProgressIndicator())
+                            : _getDisplayTransactions().isEmpty
+                                ? Center(
+                                    child: Text(
+                                      _isSearching 
+                                          ? 'Tidak ada hasil pencarian untuk "${_searchController.text}"'
+                                          : 'Tidak ada data transaksi',
+                                      style: const TextStyle(
+                                        fontSize: 16,
+                                        color: Colors.grey,
+                                      ),
+                                      textAlign: TextAlign.center,
                                     ),
+                                  )
+                                : ListView.builder(
+                                    itemCount: _getDisplayTransactions().length,
+                                    itemBuilder: (context, index) {
+                                      final transaction = _getDisplayTransactions()[index];
+                                      return _buildStatusItem(transaction);
+                                    },
                                   ),
-                                )
-                              : ListView.builder(
-                                  itemCount: _transactions.length,
-                                  itemBuilder: (context, index) {
-                                    final transaction = _transactions[index];
-                                    return _buildStatusItem(transaction);
-                                  },
-                                ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
+                       ),
+                     ],
+                   ),
+                 ),
+               ),
+             ),
           ],
         ),
       ),
