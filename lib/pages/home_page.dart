@@ -40,6 +40,22 @@ class _HomePageState extends State<HomePage> {
     _loadUserData();
   }
 
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    
+    // Check if we need to refresh after successful submit
+    final args = ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
+    if (args != null && args['refresh'] == true) {
+      print('🔄 DEBUG: Refreshing transactions after successful submit');
+      Future.delayed(const Duration(milliseconds: 500), () {
+        if (mounted && userEmail.isNotEmpty) {
+          _loadTransactions();
+        }
+      });
+    }
+  }
+
   Future<void> _loadUserData() async {
     final name = await _storageService.getUserName();
     final email = await _storageService.getUserEmail();
@@ -347,14 +363,20 @@ class _HomePageState extends State<HomePage> {
       ),
       // Floating Action Button
       floatingActionButton: FloatingActionButton(
-        onPressed: () {
+        onPressed: () async {
           HapticFeedback.lightImpact();
-          Navigator.push(
+          final result = await Navigator.push(
             context,
             MaterialPageRoute(
               builder: (context) => const AddTrxFormPage(),
             ),
           );
+          
+          // Auto refresh jika submit berhasil
+          if (result == true) {
+            print('🔄 DEBUG: Auto refreshing transactions after successful submit');
+            _loadTransactions();
+          }
         },
         backgroundColor: const Color(0xFF1B8B7A),
         child: const Icon(

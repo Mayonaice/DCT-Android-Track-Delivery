@@ -3,6 +3,7 @@ import 'package:http/http.dart' as http;
 import '../config/config.dart';
 import '../models/transaction_model.dart';
 import '../models/delivery_detail_model.dart';
+import '../models/send_goods_model.dart';
 
 class ApiService {
   static final ApiService _instance = ApiService._internal();
@@ -300,6 +301,128 @@ class ApiService {
       }
     } catch (e) {
       print('🚨 DEBUG: POST request exception: $e');
+      return {
+        'success': false,
+        'message': 'Terjadi kesalahan koneksi: ${e.toString()}',
+        'data': null,
+      };
+    }
+  }
+
+  // Add Transaction API
+  Future<Map<String, dynamic>> addTransaction(SendGoodsRequest sendGoods, String token) async {
+    try {
+      final url = Uri.parse('${Config.baseUrl}Transaction/Trx/Add');
+      
+      print('🔍 DEBUG: Add Transaction URL: $url');
+      
+      // Debug request body dengan format yang lebih readable
+      final requestBody = sendGoods.toJson();
+      print('🔍 DEBUG: Request body structure:');
+      print('  - Items count: ${requestBody['Items']?.length ?? 0}');
+      print('  - Consignees count: ${requestBody['Consignees']?.length ?? 0}');
+      print('  - Viewers count: ${requestBody['Viewers']?.length ?? 0}');
+      
+      // Debug individual sections
+      if (requestBody['Items'] != null && requestBody['Items'].isNotEmpty) {
+        print('🔍 DEBUG: First Item: ${jsonEncode(requestBody['Items'][0])}');
+      }
+      
+      if (requestBody['Consignees'] != null && requestBody['Consignees'].isNotEmpty) {
+        print('🔍 DEBUG: First Consignee: ${jsonEncode(requestBody['Consignees'][0])}');
+      } else {
+        print('🚨 DEBUG: Consignees is null or empty!');
+      }
+      
+      if (requestBody['Viewers'] != null && requestBody['Viewers'].isNotEmpty) {
+        print('🔍 DEBUG: First Viewer: ${jsonEncode(requestBody['Viewers'][0])}');
+      } else {
+        print('🚨 DEBUG: Viewers is null or empty!');
+      }
+      
+      // Print full request body in chunks to avoid truncation
+      final requestBodyJson = jsonEncode(requestBody);
+      print('🔍 DEBUG: Request body length: ${requestBodyJson.length} characters');
+      print('🔍 DEBUG: Full request body:');
+      
+      // Split into chunks of 1000 characters to avoid truncation
+      const chunkSize = 1000;
+      for (int i = 0; i < requestBodyJson.length; i += chunkSize) {
+        final end = (i + chunkSize < requestBodyJson.length) ? i + chunkSize : requestBodyJson.length;
+        final chunk = requestBodyJson.substring(i, end);
+        print('🔍 DEBUG: Body chunk ${(i / chunkSize).floor() + 1}: $chunk');
+      }
+      
+      final response = await http.post(
+        url,
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+        body: jsonEncode(requestBody),
+      );
+
+      print('🔍 DEBUG: Response status: ${response.statusCode}');
+      print('🔍 DEBUG: Response body: ${response.body}');
+
+      // Handle empty response
+      if (response.body.isEmpty) {
+        print('🚨 DEBUG: Response body is empty!');
+        return {
+          'success': false,
+          'message': 'Server mengembalikan response kosong',
+          'data': null,
+        };
+      }
+
+      // Parse JSON response
+      Map<String, dynamic> responseData;
+      try {
+        responseData = jsonDecode(response.body);
+        print('🔍 DEBUG: Parsed response data: $responseData');
+      } catch (jsonError) {
+        print('🚨 DEBUG: JSON parsing error: $jsonError');
+        return {
+          'success': false,
+          'message': 'Server mengembalikan response yang tidak valid: ${response.body}',
+          'data': null,
+        };
+      }
+
+      if (response.statusCode == 200) {
+        // Check if API response indicates success
+        bool isApiSuccess = responseData['ok'] == true;
+        
+        if (isApiSuccess) {
+          print('✅ DEBUG: Add transaction successful');
+          return {
+            'success': true,
+            'message': responseData['message'] ?? 'Transaksi berhasil ditambahkan',
+            'data': responseData,
+          };
+        } else {
+          // API returned ok: false
+          String errorMessage = responseData['message'] ?? 'Gagal menambahkan transaksi';
+          print('❌ DEBUG: API returned failure: $errorMessage');
+          return {
+            'success': false,
+            'message': errorMessage,
+            'data': responseData,
+          };
+        }
+      } else {
+        String errorMessage = responseData['message'] ?? 'Gagal menambahkan transaksi';
+        print('❌ DEBUG: Add transaction failed with message: $errorMessage');
+        
+        return {
+          'success': false,
+          'message': errorMessage,
+          'data': responseData,
+        };
+      }
+    } catch (e) {
+      print('🚨 DEBUG: Exception occurred: $e');
       return {
         'success': false,
         'message': 'Terjadi kesalahan koneksi: ${e.toString()}',

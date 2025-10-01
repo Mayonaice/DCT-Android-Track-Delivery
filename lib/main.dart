@@ -24,12 +24,14 @@ class MyApp extends StatelessWidget {
         colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF1B8B7A)),
         useMaterial3: true,
       ),
-      home: const LoginPage(),
       routes: {
+        '/': (context) => const HomePage(),
+        '/login': (context) => const LoginPage(),
         '/login-with-code': (context) => const LoginWithCodePage(),
         '/check-delivery': (context) => const CheckDeliveryPage(),
         '/ubah-password': (context) => const UbahPasswordPage(),
       },
+      initialRoute: '/login',
       debugShowCheckedModeBanner: false,
     );
   }
