@@ -4,6 +4,8 @@ import '../config/config.dart';
 import '../models/transaction_model.dart';
 import '../models/delivery_detail_model.dart';
 import '../models/send_goods_model.dart';
+import '../models/login_code_model.dart';
+import '../models/delivery_transaction_detail_model.dart';
 
 class ApiService {
   static final ApiService _instance = ApiService._internal();
@@ -785,6 +787,113 @@ class ApiService {
       return DeliveryDetailResponse(
         ok: false,
         message: 'Terjadi kesalahan saat mengambil detail pengiriman: ${e.toString()}',
+        data: null,
+      );
+    }
+  }
+
+  // Login By Code API
+  Future<LoginCodeResponse> loginByCode(String code) async {
+    try {
+      final url = Uri.parse('http://10.10.0.223/LocalTrackingDelivery/api/Users/LoginByCode?Code=$code');
+      
+      print('🔍 DEBUG: LoginByCode URL: $url');
+      print('🔍 DEBUG: LoginByCode Code: $code');
+      
+      final response = await http.post(
+        url,
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+      );
+
+      print('🔍 DEBUG: LoginByCode Response status: ${response.statusCode}');
+      print('🔍 DEBUG: LoginByCode Response body: ${response.body}');
+
+      // Handle empty response
+      if (response.body.isEmpty) {
+        print('🚨 DEBUG: LoginByCode returned empty response!');
+        return LoginCodeResponse(
+          ok: false,
+          message: 'Server mengembalikan response kosong',
+        );
+      }
+
+      // Try to parse JSON response
+      Map<String, dynamic> responseData;
+      try {
+        responseData = jsonDecode(response.body);
+        print('🔍 DEBUG: LoginByCode parsed JSON: $responseData');
+      } catch (jsonError) {
+        print('🚨 DEBUG: LoginByCode JSON parsing failed: $jsonError');
+        return LoginCodeResponse(
+          ok: false,
+          message: 'Server mengembalikan response yang tidak valid',
+        );
+      }
+
+      return LoginCodeResponse.fromJson(responseData);
+    } catch (e) {
+      print('🚨 DEBUG: LoginByCode error: $e');
+      return LoginCodeResponse(
+        ok: false,
+        message: 'Terjadi kesalahan koneksi: ${e.toString()}',
+      );
+    }
+  }
+
+  // Get Transaction Detail API
+  Future<DeliveryTransactionDetailResponse> getTransactionDetail(String deliveryCode, String token) async {
+    try {
+      final url = Uri.parse('http://10.10.0.223/LocalTrackingDelivery/api/Transaction/Trx/Detail?DeliveryCode=$deliveryCode');
+      
+      print('🔍 DEBUG: TransactionDetail URL: $url');
+      print('🔍 DEBUG: TransactionDetail DeliveryCode: $deliveryCode');
+      print('🔍 DEBUG: TransactionDetail Token: ${token.substring(0, 20)}...');
+      
+      final response = await http.get(
+        url,
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+      );
+
+      print('🔍 DEBUG: TransactionDetail Response status: ${response.statusCode}');
+      print('🔍 DEBUG: TransactionDetail Response body: ${response.body}');
+
+      // Handle empty response
+      if (response.body.isEmpty) {
+        print('🚨 DEBUG: TransactionDetail returned empty response!');
+        return DeliveryTransactionDetailResponse(
+          ok: false,
+          message: 'Server mengembalikan response kosong',
+          data: null,
+        );
+      }
+
+      // Try to parse JSON response
+      Map<String, dynamic> responseData;
+      try {
+        responseData = jsonDecode(response.body);
+        print('🔍 DEBUG: TransactionDetail parsed JSON: $responseData');
+      } catch (jsonError) {
+        print('🚨 DEBUG: TransactionDetail JSON parsing failed: $jsonError');
+        return DeliveryTransactionDetailResponse(
+          ok: false,
+          message: 'Server mengembalikan response yang tidak valid',
+          data: null,
+        );
+      }
+
+      return DeliveryTransactionDetailResponse.fromJson(responseData);
+    } catch (e) {
+      print('🚨 DEBUG: TransactionDetail error: $e');
+      return DeliveryTransactionDetailResponse(
+        ok: false,
+        message: 'Terjadi kesalahan koneksi: ${e.toString()}',
         data: null,
       );
     }

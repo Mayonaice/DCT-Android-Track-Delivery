@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../widgets/custommodals.dart';
+import '../services/api_service.dart';
+import 'delivery_detail_page.dart';
 
 class LoginWithCodePage extends StatefulWidget {
   const LoginWithCodePage({super.key});
@@ -11,11 +13,87 @@ class LoginWithCodePage extends StatefulWidget {
 
 class _LoginWithCodePageState extends State<LoginWithCodePage> {
   final TextEditingController _codeController = TextEditingController();
+  final ApiService _apiService = ApiService();
+  bool _isLoading = false;
 
   @override
   void dispose() {
     _codeController.dispose();
     super.dispose();
+  }
+
+  Future<void> _handleLogin() async {
+    print('🔍 DEBUG: Starting login process...');
+    
+    final code = _codeController.text.trim();
+    print('🔍 DEBUG: Input code: "$code"');
+    
+    if (code.isEmpty) {
+      print('⚠️ DEBUG: Code is empty, showing error modal');
+      CustomModals.showErrorModal(
+        context,
+        'Silakan masukkan kode pengiriman',
+      );
+      return;
+    }
+
+    print('🔍 DEBUG: Setting loading state to true');
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      print('🔍 DEBUG: Calling API loginByCode...');
+      final response = await _apiService.loginByCode(code);
+      
+      print('🔍 DEBUG: Login API response received');
+      print('🔍 DEBUG: Response ok: ${response.ok}');
+      print('🔍 DEBUG: Response message: ${response.message}');
+      print('🔍 DEBUG: Response data: ${response.data != null ? "Available" : "Null"}');
+      
+      if (response.ok && response.data != null) {
+        print('✅ DEBUG: Login successful!');
+        print('🔍 DEBUG: User data - seqNo: ${response.data!.seqNo}');
+        print('🔍 DEBUG: User data - deliveryCode: ${response.data!.deliveryCode}');
+        print('🔍 DEBUG: User data - name: ${response.data!.name}');
+        print('🔍 DEBUG: User data - phoneNumber: ${response.data!.phoneNumber}');
+        print('🔍 DEBUG: User data - status: ${response.data!.status}');
+        print('🔍 DEBUG: User data - token: ${response.data!.token.substring(0, 20)}...');
+        
+        print('🔍 DEBUG: Navigating to DeliveryDetailPage...');
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(
+            builder: (context) => DeliveryDetailPage(
+              deliveryCode: response.data!.deliveryCode,
+              token: response.data!.token,
+            ),
+          ),
+        );
+        print('🔍 DEBUG: Navigation completed');
+      } else {
+        print('❌ DEBUG: Login failed, showing error modal');
+        CustomModals.showErrorModal(
+          context,
+          response.message.isNotEmpty 
+              ? response.message 
+              : 'Login gagal, silakan coba lagi',
+        );
+      }
+    } catch (e) {
+      print('🚨 DEBUG: Login exception occurred: $e');
+      CustomModals.showErrorModal(
+        context,
+        'Terjadi kesalahan: ${e.toString()}',
+      );
+    } finally {
+      print('🔍 DEBUG: Setting loading state to false');
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    }
   }
 
   @override
@@ -99,15 +177,7 @@ class _LoginWithCodePageState extends State<LoginWithCodePage> {
                 width: double.infinity,
                 height: 56,
                 child: ElevatedButton(
-                  onPressed: () {
-                    print('🔄 DEBUG: Login with code button pressed');
-                    // Handle login with code logic here
-                    HapticFeedback.lightImpact();
-                    CustomModals.showSuccessModal(
-                      context,
-                      'Login with code functionality will be implemented',
-                    );
-                  },
+                  onPressed: _isLoading ? null : _handleLogin,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFF1B8B7A),
                     foregroundColor: Colors.white,
@@ -116,13 +186,22 @@ class _LoginWithCodePageState extends State<LoginWithCodePage> {
                       borderRadius: BorderRadius.circular(28),
                     ),
                   ),
-                  child: const Text(
-                    'Masuk',
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
+                  child: _isLoading
+                      ? const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                          ),
+                        )
+                      : const Text(
+                          'Masuk',
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
                 ),
               ),
               const SizedBox(height: 200),
