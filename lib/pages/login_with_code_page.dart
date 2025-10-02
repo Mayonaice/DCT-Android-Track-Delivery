@@ -2,7 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../widgets/custommodals.dart';
 import '../services/api_service.dart';
+import '../enums/user_role.dart';
 import 'delivery_detail_page.dart';
+import 'role_not_supported_page.dart';
+import 'ta_tp_delivery_page.dart';
 
 class LoginWithCodePage extends StatefulWidget {
   const LoginWithCodePage({super.key});
@@ -60,16 +63,59 @@ class _LoginWithCodePageState extends State<LoginWithCodePage> {
         print('🔍 DEBUG: User data - status: ${response.data!.status}');
         print('🔍 DEBUG: User data - token: ${response.data!.token.substring(0, 20)}...');
         
-        print('🔍 DEBUG: Navigating to DeliveryDetailPage...');
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(
-            builder: (context) => DeliveryDetailPage(
-              deliveryCode: response.data!.deliveryCode,
-              token: response.data!.token,
+        // Deteksi role berdasarkan 2 huruf awal kode
+        final userRole = UserRole.detectRoleFromCode(code);
+        print('🔍 DEBUG: Detected role: ${userRole?.code} (${userRole?.description})');
+        
+        if (userRole == null) {
+          print('❌ DEBUG: Invalid role detected from code: $code');
+          CustomModals.showErrorModal(
+            context,
+            'Kode tidak valid. Kode harus dimulai dengan TA, TP, atau TT.',
+          );
+          return;
+        }
+        
+        // Navigasi berdasarkan role
+        if (userRole.canAccessDeliveryDetail) {
+          // Role TT - akses ke DeliveryDetailPage
+          print('🔍 DEBUG: Navigating to DeliveryDetailPage for TT role...');
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(
+              builder: (context) => DeliveryDetailPage(
+                deliveryCode: response.data!.deliveryCode,
+                token: response.data!.token,
+              ),
             ),
-          ),
-        );
+          );
+        } else if (userRole.code == 'TA' || userRole.code == 'TP') {
+          // Role TA atau TP - navigasi ke halaman TA/TP
+          print('🔍 DEBUG: Navigating to TaTpDeliveryPage for ${userRole.code} role...');
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(
+              builder: (context) => TaTpDeliveryPage(
+                deliveryCode: response.data!.deliveryCode,
+                token: response.data!.token,
+                userRole: userRole,
+                status: response.data!.status,
+              ),
+            ),
+          );
+        } else {
+          // Role lain - halaman belum tersedia
+          print('🔍 DEBUG: Navigating to RoleNotSupportedPage for ${userRole.code} role...');
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(
+              builder: (context) => RoleNotSupportedPage(
+                userRole: userRole,
+                code: code,
+              ),
+            ),
+          );
+        }
         print('🔍 DEBUG: Navigation completed');
       } else {
         print('❌ DEBUG: Login failed, showing error modal');
