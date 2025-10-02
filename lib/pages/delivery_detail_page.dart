@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 import '../models/delivery_transaction_detail_model.dart';
 import '../services/api_service.dart';
 import '../widgets/custommodals.dart';
+import 'item_detail_page.dart';
 
 class DeliveryDetailPage extends StatefulWidget {
   final String deliveryCode;
@@ -368,9 +369,22 @@ class _DeliveryDetailPageState extends State<DeliveryDetailPage> {
               ),
               GestureDetector(
                 onTap: () {
-                  // TODO: Add functionality for item detail view
-                  print('🔍 DEBUG: Item icon tapped for: ${item.itemName}');
-                  // You can add navigation to item detail page or show modal here
+                  print('🔍 DEBUG: DeliveryDetailPage - Item icon tapped');
+                  print('🔍 DEBUG: DeliveryDetailPage - Item name: ${item.itemName}');
+                  print('🔍 DEBUG: DeliveryDetailPage - Item index: $index');
+                  print('🔍 DEBUG: DeliveryDetailPage - Delivery code: ${widget.deliveryCode}');
+                  print('🔍 DEBUG: DeliveryDetailPage - Token: ${widget.token.substring(0, 20)}...');
+                  
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => ItemDetailPage(
+                        deliveryCode: widget.deliveryCode,
+                        token: widget.token,
+                        itemIndex: index,
+                      ),
+                    ),
+                  );
                 },
                 child: Container(
                   width: 48,
