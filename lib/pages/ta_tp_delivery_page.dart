@@ -8,6 +8,7 @@ import '../models/delivery_transaction_detail_model.dart';
 import '../services/api_service.dart';
 import '../services/storage_service.dart';
 import '../enums/user_role.dart';
+import '../widgets/custommodals.dart';
 import 'ta_tp_item_detail_page.dart';
 import 'image_preview_page.dart';
 
@@ -57,6 +58,8 @@ class _TaTpDeliveryPageState extends State<TaTpDeliveryPage> {
       setState(() {
         _isLoading = true;
         _errorMessage = null;
+        // Reset foto yang sudah dipilih saat refresh
+        _selectedImage = null;
       });
 
       final response = await _apiService.getTransactionDetail(widget.deliveryCode, widget.token);
@@ -216,6 +219,164 @@ class _TaTpDeliveryPageState extends State<TaTpDeliveryPage> {
           SnackBar(content: Text('Error memilih gambar: $e')),
         );
       }
+    }
+  }
+
+  // Fungsi untuk mengkonversi File ke Base64
+  Future<String?> _convertImageToBase64(File imageFile) async {
+    try {
+      List<int> imageBytes = await imageFile.readAsBytes();
+      String base64String = base64Encode(imageBytes);
+      return base64String;
+    } catch (e) {
+      print('Error converting image to base64: $e');
+      return null;
+    }
+  }
+
+  // Method untuk hit API PostReceiveData
+  Future<bool> _postReceiveData() async {
+    try {
+      print('🔍 DEBUG: Starting _postReceiveData...');
+      print('🔍 DEBUG: Selected image path: ${_selectedImage?.path}');
+      print('🔍 DEBUG: Delivery code: ${widget.deliveryCode}');
+      print('🔍 DEBUG: Description: ${_descriptionController.text.trim()}');
+
+      // Convert image to base64
+      print('🔍 DEBUG: Converting image to base64...');
+      final base64Image = await _convertImageToBase64(_selectedImage!);
+      if (base64Image == null) {
+        print('🚨 DEBUG: Failed to convert image to base64');
+        CustomModals.showErrorModal(
+          context,
+          'Gagal memproses foto. Silakan coba lagi.',
+        );
+        return false;
+      }
+      print('🔍 DEBUG: Base64 conversion successful, length: ${base64Image.length}');
+
+      // Prepare photo body
+      final photoBody = {
+        "photo": [
+          {
+            "photo64": base64Image,
+            "filename": "delivery_${widget.deliveryCode}_${DateTime.now().millisecondsSinceEpoch}.jpg",
+            "description": _descriptionController.text.trim().isEmpty 
+                ? "Foto bukti terima barang" 
+                : _descriptionController.text.trim(),
+          }
+        ]
+      };
+
+      print('🔍 DEBUG: Photo body prepared:');
+      print('🔍 DEBUG: - filename: ${photoBody["photo"]![0]["filename"]}');
+      print('🔍 DEBUG: - description: ${photoBody["photo"]![0]["description"]}');
+      print('🔍 DEBUG: - photo64 length: ${photoBody["photo"]![0]["photo64"]?.length}');
+
+      // Get token from storage
+      print('🔍 DEBUG: Getting token from storage...');
+      final token = await StorageService().getToken();
+      if (token == null || token.isEmpty) {
+        print('🚨 DEBUG: Token is null or empty');
+        CustomModals.showErrorModal(
+          context,
+          'Token tidak ditemukan. Silakan login ulang.',
+        );
+        return false;
+      }
+      print('🔍 DEBUG: Token retrieved successfully, length: ${token.length}');
+
+      print('🔍 DEBUG: Preparing API call...');
+      print('🔍 DEBUG: Endpoint: Transaction/Trx/Receive');
+      print('🔍 DEBUG: Query params: DeliveryCode=${widget.deliveryCode}');
+
+      // Hit API endpoint
+      print('🔍 DEBUG: Calling API...');
+      final response = await _apiService.post(
+        'Transaction/Trx/Receive',
+        photoBody,
+        token: token,
+        queryParams: {
+          'DeliveryCode': widget.deliveryCode,
+        },
+      );
+
+      print('🔍 DEBUG: API call completed');
+      print('🔍 DEBUG: Full response: $response');
+      print('🔍 DEBUG: Response type: ${response.runtimeType}');
+
+      // Check API response structure - focus on 'ok' field only
+      final responseData = response['data'];
+      print('🔍 DEBUG: Response data type: ${responseData.runtimeType}');
+      print('🔍 DEBUG: Response data content: $responseData');
+      print('🔍 DEBUG: Response data ok value: ${responseData?['ok']}');
+      
+      if (responseData != null && responseData['ok'] == true) {
+        print('🔍 DEBUG: Response data ok is true - SUCCESS!');
+        
+        // Gunakan WidgetsBinding untuk memastikan frame selesai sebelum menampilkan modal
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          CustomModals.hideLoadingModal(context);
+          print('🔍 DEBUG: Loading modal hidden, about to show success modal...');
+          
+          CustomModals.showSuccessModal(
+            context,
+            'Konfirmasi penerimaan barang berhasil!',
+            onOk: () {
+              print('🔍 DEBUG: Success modal OK button pressed');
+              // Refresh halaman setelah modal ditutup
+              _loadDeliveryDetail();
+            },
+          );
+          print('🔍 DEBUG: Success modal called');
+        });
+        return true;
+      } else {
+        print('🚨 DEBUG: Response data ok is not true - FAILED!');
+        print('🚨 DEBUG: Response data ok value: ${responseData?['ok']}');
+        final errorMessage = responseData?['message'] ?? 'Gagal mengkonfirmasi penerimaan barang';
+        print('🚨 DEBUG: Error message: $errorMessage');
+        
+        // Gunakan WidgetsBinding untuk memastikan frame selesai sebelum menampilkan modal
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          CustomModals.hideLoadingModal(context);
+          print('🚨 DEBUG: Loading modal hidden, about to show error modal...');
+          
+          CustomModals.showErrorModal(
+            context,
+            errorMessage,
+            onOk: () {
+              print('🚨 DEBUG: Error modal OK button pressed');
+              // Refresh halaman setelah modal ditutup
+              _loadDeliveryDetail();
+            },
+          );
+          print('🚨 DEBUG: Error modal called');
+        });
+        return false;
+      }
+    } catch (e) {
+      print('🚨 DEBUG: Exception in _postReceiveData: $e');
+      print('🚨 DEBUG: Exception type: ${e.runtimeType}');
+      print('🚨 DEBUG: Stack trace: ${StackTrace.current}');
+      
+      // Gunakan WidgetsBinding untuk memastikan frame selesai sebelum menampilkan modal
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        CustomModals.hideLoadingModal(context);
+        print('🚨 DEBUG: Loading modal hidden, about to show exception error modal...');
+        
+        CustomModals.showErrorModal(
+          context,
+          'Terjadi kesalahan: ${e.toString()}',
+          onOk: () {
+            print('🚨 DEBUG: Exception error modal OK button pressed');
+            // Refresh halaman setelah modal ditutup
+            _loadDeliveryDetail();
+          },
+        );
+        print('🚨 DEBUG: Exception error modal called');
+      });
+      return false;
     }
   }
 
@@ -469,35 +630,81 @@ class _TaTpDeliveryPageState extends State<TaTpDeliveryPage> {
   bool _isButtonEnabled() {
     // TP role: button enabled when status is "2"
     // TA role: button enabled when status is "3"
+    // Special case: TA role with status "2" and only 1 consignee bypasses normal rule
+    // Exception: bypass does NOT apply if status is "4" (already received by target)
+    
     if (widget.userRole == UserRole.tp) {
       return widget.status == "2";
     } else if (widget.userRole == UserRole.ta) {
+      // Check if there's only 1 consignee and status is "2" - bypass normal TA rule
+      // BUT NOT if status is "4" (already received by target)
+      if (widget.status == "2" && widget.status != "4" && _deliveryData != null && _deliveryData!.consignees.length == 1) {
+        print('🔍 DEBUG: TA role bypass - status "2" with single consignee, enabling button');
+        return true;
+      }
+      // Normal TA rule: enabled when status is "3"
       return widget.status == "3";
     }
     return false;
   }
 
-  void _handleKonfirmasiTerima() {
+  void _handleKonfirmasiTerima() async {
     if (!_isButtonEnabled()) {
+      String errorMessage;
+      if (widget.userRole == UserRole.tp) {
+        errorMessage = 'Status harus "2" untuk mengkonfirmasi';
+      } else if (widget.userRole == UserRole.ta) {
+        if (_deliveryData != null && _deliveryData!.consignees.length == 1) {
+          errorMessage = 'Status harus "2" atau "3" untuk mengkonfirmasi (bypass untuk 1 penerima)';
+        } else {
+          errorMessage = 'Status harus "3" untuk mengkonfirmasi';
+        }
+      } else {
+        errorMessage = 'Role tidak valid untuk konfirmasi';
+      }
+      
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(
-            widget.userRole == UserRole.tp 
-                ? 'Status harus "2" untuk mengkonfirmasi'
-                : 'Status harus "3" untuk mengkonfirmasi'
-          ),
+          content: Text(errorMessage),
         ),
       );
       return;
     }
 
-    // TODO: Implement confirmation logic
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Konfirmasi terima berhasil'),
-        backgroundColor: Color(0xFF1B8B7A),
-      ),
-    );
+    // Validasi foto terlebih dahulu sebelum show loading
+    if (_selectedImage == null) {
+      CustomModals.showErrorModal(
+        context,
+        'Upload foto bukti terima barang terlebih dahulu!',
+      );
+      return;
+    }
+
+    // Show loading modal
+    CustomModals.showLoadingModal(context, message: 'Memproses konfirmasi...');
+
+    try {
+      // Call API endpoint
+      final success = await _postReceiveData();
+      
+      // Hide loading modal
+      CustomModals.hideLoadingModal(context);
+      
+      if (success) {
+        print('🔍 DEBUG: Konfirmasi penerimaan barang berhasil');
+      } else {
+        print('🔍 DEBUG: Konfirmasi penerimaan barang gagal');
+      }
+    } catch (e) {
+      // Hide loading modal in case of error
+      CustomModals.hideLoadingModal(context);
+      print('🚨 DEBUG: Error in _handleKonfirmasiTerima: $e');
+      
+      CustomModals.showErrorModal(
+        context,
+        'Terjadi kesalahan saat memproses konfirmasi: ${e.toString()}',
+      );
+    }
   }
 
   @override

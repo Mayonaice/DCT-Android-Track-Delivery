@@ -6,6 +6,7 @@ import '../models/delivery_detail_model.dart';
 import '../models/send_goods_model.dart';
 import '../models/login_code_model.dart';
 import '../models/delivery_transaction_detail_model.dart';
+import '../models/delivery_status_detail_model.dart';
 
 class ApiService {
   static final ApiService _instance = ApiService._internal();
@@ -895,6 +896,69 @@ class ApiService {
         ok: false,
         message: 'Terjadi kesalahan koneksi: ${e.toString()}',
         data: null,
+      );
+    }
+  }
+
+  // Get Delivery Status Detail API
+  Future<DeliveryStatusDetailResponse?> getDeliveryStatusDetail(String deliveryCode, String token) async {
+    try {
+      print('🔍 DEBUG: Getting delivery status detail for code: $deliveryCode');
+      print('🔍 DEBUG: Using token: ${token.substring(0, 20)}...');
+      
+      final queryParams = {
+        'DeliveryCode': deliveryCode,
+      };
+      
+      print('📤 DEBUG: Delivery status detail query params: $queryParams');
+      
+      final url = Uri.parse('${Config.baseUrl}Transaction/Trx/DetailStatus').replace(queryParameters: queryParams);
+      
+      print('🔍 DEBUG: Delivery status detail URL: $url');
+      
+      final response = await http.get(
+        url,
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+      );
+
+      print('🔍 DEBUG: Delivery status detail Response status: ${response.statusCode}');
+      print('🔍 DEBUG: Delivery status detail Response body: ${response.body}');
+
+      // Handle empty response
+      if (response.body.isEmpty) {
+        print('🚨 DEBUG: Delivery status detail returned empty response!');
+        return DeliveryStatusDetailResponse(
+          ok: false,
+          message: 'Server mengembalikan response kosong',
+          data: [],
+        );
+      }
+
+      // Try to parse JSON response
+      Map<String, dynamic> responseData;
+      try {
+        responseData = jsonDecode(response.body);
+        print('🔍 DEBUG: Delivery status detail parsed JSON: $responseData');
+      } catch (jsonError) {
+        print('🚨 DEBUG: Delivery status detail JSON parsing failed: $jsonError');
+        return DeliveryStatusDetailResponse(
+          ok: false,
+          message: 'Server mengembalikan response yang tidak valid',
+          data: [],
+        );
+      }
+
+      return DeliveryStatusDetailResponse.fromJson(responseData);
+    } catch (e) {
+      print('🚨 DEBUG: Delivery status detail error: $e');
+      return DeliveryStatusDetailResponse(
+        ok: false,
+        message: 'Terjadi kesalahan koneksi: ${e.toString()}',
+        data: [],
       );
     }
   }

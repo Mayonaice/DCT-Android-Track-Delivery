@@ -3,8 +3,10 @@ import 'dart:convert';
 import 'package:intl/intl.dart';
 import '../models/delivery_transaction_detail_model.dart';
 import '../services/api_service.dart';
+import '../services/storage_service.dart';
 import '../widgets/custommodals.dart';
 import 'item_detail_page.dart';
+import 'delivery_status_detail_page.dart';
 
 class DeliveryDetailPage extends StatefulWidget {
   final String deliveryCode;
@@ -231,12 +233,35 @@ class _DeliveryDetailPageState extends State<DeliveryDetailPage> {
                 color: Color(0xFF374151),
               ),
             ),
-            const Text(
-              'Lihat Detail',
-              style: TextStyle(
-                color: Color(0xFF1B8B7A),
-                fontSize: 16,
-                fontWeight: FontWeight.w600,
+            GestureDetector(
+              onTap: () async {
+                final token = await StorageService().getToken();
+                if (token != null) {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => DeliveryStatusDetailPage(
+                        deliveryCode: widget.deliveryCode,
+                        token: token,
+                      ),
+                    ),
+                  );
+                } else {
+                  // Handle case when token is null
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Token tidak ditemukan, silakan login ulang'),
+                    ),
+                  );
+                }
+              },
+              child: const Text(
+                'Lihat Detail',
+                style: TextStyle(
+                  color: Color(0xFF1B8B7A),
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                ),
               ),
             ),
           ],

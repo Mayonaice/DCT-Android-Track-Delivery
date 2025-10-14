@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../widgets/custommodals.dart';
 import '../services/api_service.dart';
+import '../services/storage_service.dart';
 import '../enums/user_role.dart';
 import 'delivery_detail_page.dart';
 import 'role_not_supported_page.dart';
@@ -62,6 +63,26 @@ class _LoginWithCodePageState extends State<LoginWithCodePage> {
         print('🔍 DEBUG: User data - phoneNumber: ${response.data!.phoneNumber}');
         print('🔍 DEBUG: User data - status: ${response.data!.status}');
         print('🔍 DEBUG: User data - token: ${response.data!.token.substring(0, 20)}...');
+        
+        // Simpan token ke storage service
+        print('🔍 DEBUG: Saving token to storage...');
+        final loginData = {
+          'tokenAccess': response.data!.token,
+          'profile': {
+            'seqNo': response.data!.seqNo,
+            'deliveryCode': response.data!.deliveryCode,
+            'name': response.data!.name,
+            'phoneNumber': response.data!.phoneNumber,
+            'status': response.data!.status,
+          }
+        };
+        
+        try {
+          await StorageService().saveLoginData(loginData);
+          print('✅ DEBUG: Token saved successfully to storage');
+        } catch (e) {
+          print('🚨 DEBUG: Failed to save token to storage: $e');
+        }
         
         // Deteksi role berdasarkan 2 huruf awal kode
         final userRole = UserRole.detectRoleFromCode(code);
