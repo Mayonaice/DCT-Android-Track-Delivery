@@ -1032,4 +1032,104 @@ class ApiService {
       return false;
     }
   }
+
+  // Get Profile Image API
+  Future<Map<String, dynamic>> getProfileImage(String token) async {
+    try {
+      print('🔍 DEBUG: Getting profile image');
+      print('🔍 DEBUG: Using token: ${token.substring(0, 20)}...');
+      
+      final url = Uri.parse('${Config.baseUrl}Users/ProfileImage');
+      print('🔍 DEBUG: Get profile image URL: $url');
+      
+      final response = await http.get(
+        url,
+        headers: {
+          'Accept': 'image/*',
+          'Authorization': 'Bearer $token',
+        },
+      );
+
+      print('🔍 DEBUG: Get profile image response status: ${response.statusCode}');
+      print('🔍 DEBUG: Get profile image response content-type: ${response.headers['content-type']}');
+      print('🔍 DEBUG: Get profile image response body length: ${response.bodyBytes.length}');
+
+      if (response.statusCode == 200) {
+        // Check if response has image data
+        if (response.bodyBytes.isNotEmpty) {
+          return {
+            'success': true,
+            'data': {
+              'imageBytes': response.bodyBytes,
+              'contentType': response.headers['content-type'] ?? 'image/jpeg',
+            },
+          };
+        } else {
+          return {
+            'success': false,
+            'message': 'No profile image found',
+          };
+        }
+      } else {
+        print('❌ DEBUG: Failed to get profile image - Status: ${response.statusCode}');
+        return {
+          'success': false,
+          'message': 'Failed to get profile image',
+        };
+      }
+    } catch (e) {
+      print('❌ DEBUG: Error getting profile image: $e');
+      return {
+        'success': false,
+        'message': 'Error getting profile image: $e',
+      };
+    }
+  }
+
+  // Change Profile Image API
+  Future<Map<String, dynamic>> changeProfileImage(String base64, String filename, String token) async {
+    try {
+      print('DEBUG API: Sending request to ${Config.baseUrl}Users/ChangeProfilePicture');
+      print('DEBUG API: Filename: $filename');
+      print('DEBUG API: Base64 length: ${base64.length}');
+      
+      final url = Uri.parse('${Config.baseUrl}Users/ChangeProfilePicture');
+      print('🔍 DEBUG: Change profile image URL: $url');
+      
+      final response = await http.post(
+        url,
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+        body: jsonEncode({
+          'Base64': base64,
+          'Filename': filename,
+        }),
+      );
+
+      print('DEBUG API: Response status: ${response.statusCode}');
+      print('DEBUG API: Response body: ${response.body}');
+
+      if (response.statusCode == 200) {
+        final responseData = jsonDecode(response.body);
+        return {
+          'success': true,
+          'data': responseData,
+        };
+      } else {
+        return {
+          'success': false,
+          'message': 'HTTP ${response.statusCode}: ${response.body}',
+        };
+      }
+    } catch (e) {
+      print('DEBUG API: Exception occurred: $e');
+      return {
+        'success': false,
+        'message': 'Network error: $e',
+      };
+    }
+  }
 }

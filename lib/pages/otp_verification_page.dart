@@ -107,28 +107,22 @@ class _OtpVerificationPageState extends State<OtpVerificationPage> {
         _startCountdownTimer();
         
         // Show success message
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Kode OTP baru telah dikirim'),
-            backgroundColor: Color(0xFF1B8B7A),
-          ),
+        CustomModals.showSuccessModal(
+          context,
+          'Kode OTP baru telah dikirim',
         );
       } else {
         print('❌ DEBUG: Failed to resend OTP: ${response['message']}');
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(response['message'] ?? 'Gagal mengirim ulang kode OTP'),
-            backgroundColor: Colors.red,
-          ),
+        CustomModals.showErrorModal(
+          context,
+          response['message'] ?? 'Gagal mengirim ulang kode OTP',
         );
       }
     } catch (e) {
       print('🚨 DEBUG: Error resending OTP: $e');
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Terjadi kesalahan saat mengirim ulang kode OTP'),
-          backgroundColor: Colors.red,
-        ),
+      CustomModals.showErrorModal(
+        context,
+        'Terjadi kesalahan saat mengirim ulang kode OTP',
       );
     } finally {
       setState(() {

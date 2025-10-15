@@ -215,8 +215,9 @@ class _TaTpDeliveryPageState extends State<TaTpDeliveryPage> {
     } catch (e) {
       print('Error picking image: $e');
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error memilih gambar: $e')),
+        CustomModals.showErrorModal(
+          context,
+          'Error memilih gambar: $e',
         );
       }
     }
@@ -682,10 +683,9 @@ class _TaTpDeliveryPageState extends State<TaTpDeliveryPage> {
         errorMessage = 'Role tidak valid untuk konfirmasi';
       }
       
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(errorMessage),
-        ),
+      CustomModals.showErrorModal(
+        context,
+        errorMessage,
       );
       return;
     }

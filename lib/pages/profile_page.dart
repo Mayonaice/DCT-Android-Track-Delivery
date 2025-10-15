@@ -1,4 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
+import 'dart:convert';
+import 'dart:io';
+import 'dart:typed_data';
 import '../widgets/bottom_navigation_widget.dart';
 import '../services/api_service.dart';
 import '../services/storage_service.dart';
@@ -16,10 +20,13 @@ class ProfilePage extends StatefulWidget {
 class _ProfilePageState extends State<ProfilePage> {
   final ApiService _apiService = ApiService();
   final StorageService _storageService = StorageService();
+  final ImagePicker _picker = ImagePicker();
   
   UserProfileData? _profileData;
   bool _isLoading = true;
   String _errorMessage = '';
+  Uint8List? _profileImageBytes;
+  File? _selectedImage;
 
   @override
   void initState() {
@@ -51,8 +58,10 @@ class _ProfilePageState extends State<ProfilePage> {
         if (profileResponse.ok && profileResponse.data != null) {
           setState(() {
             _profileData = profileResponse.data;
-            _isLoading = false;
           });
+          
+          // Load profile image
+          await _loadProfileImage(token);
         } else {
           setState(() {
             _errorMessage = profileResponse.message.isNotEmpty 
@@ -72,6 +81,228 @@ class _ProfilePageState extends State<ProfilePage> {
         _errorMessage = 'Terjadi kesalahan: ${e.toString()}';
         _isLoading = false;
       });
+    }
+  }
+
+  Future<void> _loadProfileImage(String token) async {
+    try {
+      final response = await _apiService.getProfileImage(token);
+      if (response['success'] == true && response['data'] != null) {
+        setState(() {
+          _profileImageBytes = response['data']['imageBytes'];
+          _isLoading = false;
+        });
+      } else {
+        setState(() {
+          _profileImageBytes = null;
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      print('Error loading profile image: $e');
+      setState(() {
+        _profileImageBytes = null;
+        _isLoading = false;
+      });
+    }
+  }
+
+  Future<void> _pickImage() async {
+    try {
+      final XFile? image = await _picker.pickImage(source: ImageSource.gallery);
+      if (image != null) {
+        // Validasi format gambar
+        final String fileName = image.path.toLowerCase();
+        final bool isValidFormat = fileName.endsWith('.jpg') || 
+                                 fileName.endsWith('.jpeg') || 
+                                 fileName.endsWith('.png');
+        
+        if (!isValidFormat) {
+          CustomModals.showErrorModal(
+            context,
+            'Format gambar harus JPG, JPEG, atau PNG',
+          );
+          return;
+        }
+        
+        setState(() {
+          _selectedImage = File(image.path);
+        });
+        await _uploadProfileImage();
+      }
+    } catch (e) {
+      print('Error picking image: $e');
+      CustomModals.showErrorModal(
+        context,
+        'Error memilih gambar: $e',
+      );
+    }
+  }
+
+  Future<String> _convertImageToBase64(File imageFile) async {
+    try {
+      final bytes = await imageFile.readAsBytes();
+      return base64Encode(bytes);
+    } catch (e) {
+      print('Error converting image to base64: $e');
+      throw Exception('Gagal mengkonversi gambar');
+    }
+  }
+
+  Future<void> _uploadProfileImage() async {
+    if (_selectedImage == null) return;
+
+    try {
+      final token = await _storageService.getToken();
+      if (token == null) {
+        CustomModals.showErrorModal(
+          context,
+          'Token tidak ditemukan',
+        );
+        return;
+      }
+
+      final base64Image = await _convertImageToBase64(_selectedImage!);
+      final filename = _selectedImage!.path.split('/').last;
+
+      print('DEBUG: Uploading image with filename: $filename');
+      print('DEBUG: Base64 length: ${base64Image.length}');
+      print('DEBUG: Token: ${token.substring(0, 20)}...');
+
+      final response = await _apiService.changeProfileImage(base64Image, filename, token);
+      
+      print('DEBUG: API Response: $response');
+      
+      if (response['success'] == true) {
+        CustomModals.showSuccessModal(
+          context,
+          'Foto profil berhasil diubah',
+        );
+        // Reload profile image
+        await _loadProfileImage(token);
+        
+        // Trigger a rebuild of the entire page to refresh the bottom navigation
+        if (mounted) {
+          setState(() {
+            // This will trigger a rebuild and the bottom navigation will refresh
+            // due to the didUpdateWidget implementation
+          });
+        }
+      } else {
+        CustomModals.showErrorModal(
+          context,
+          response['message'] ?? 'Gagal mengubah foto profil',
+        );
+      }
+    } catch (e) {
+      print('Error uploading profile image: $e');
+      CustomModals.showErrorModal(
+        context,
+        'Error: $e',
+      );
+    }
+  }
+
+  void _showProfileImageDialog() {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return Dialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          child: Container(
+            padding: const EdgeInsets.all(16),
+            decoration: const BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.all(Radius.circular(16)),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Upload Foto Option
+                InkWell(
+                  onTap: () {
+                    Navigator.of(context).pop();
+                    _pickImage();
+                  },
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+                    child: Row(
+                      children: [
+                        const Icon(
+                          Icons.camera_alt,
+                          color: Colors.black,
+                          size: 24,
+                        ),
+                        const SizedBox(width: 16),
+                        const Text(
+                          'Upload Foto',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w500,
+                            color: Colors.black,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                
+                // Divider
+                Container(
+                  height: 1,
+                  color: Colors.grey[300],
+                  margin: const EdgeInsets.symmetric(horizontal: 16),
+                ),
+                
+                // Lihat Foto Option
+                InkWell(
+                  onTap: () {
+                    Navigator.of(context).pop();
+                    // TODO: Implement view photo functionality if needed
+                  },
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+                    child: Row(
+                      children: [
+                        const Icon(
+                          Icons.image,
+                          color: Colors.black,
+                          size: 24,
+                        ),
+                        const SizedBox(width: 16),
+                        const Text(
+                          'Lihat Foto',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w500,
+                            color: Colors.black,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _refreshProfile() async {
+    try {
+      await _loadUserProfile();
+    } catch (e) {
+      print('Error refreshing profile: $e');
+      if (mounted) {
+        CustomModals.showErrorModal(
+          context,
+          'Gagal memuat ulang profil: $e',
+        );
+      }
     }
   }
 
@@ -116,85 +347,181 @@ class _ProfilePageState extends State<ProfilePage> {
                     ],
                   ),
                 )
-              : Column(
-                  children: [
-                    // Header Profile Section
-                    Container(
-                      width: double.infinity,
-                      decoration: const BoxDecoration(
-                        gradient: LinearGradient(
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                          colors: [
-                            Color(0xFF059669), // Teal-600 (konsisten dengan home)
-                            Color(0xFF047857), // Teal-700 (konsisten dengan home)
-                          ],
-                        ),
-                        borderRadius: BorderRadius.only(
-                          bottomLeft: Radius.circular(30),
-                          bottomRight: Radius.circular(30),
-                        ),
-                      ),
-                      child: SafeArea(
-                        child: Padding(
-                          padding: const EdgeInsets.all(20.0),
-                          child: Row(
+              : RefreshIndicator(
+                  onRefresh: _refreshProfile,
+                  color: const Color(0xFF059669),
+                  backgroundColor: Colors.white,
+                  child: Column(
+                    children: [
+                      Expanded(
+                        child: SingleChildScrollView(
+                          physics: const AlwaysScrollableScrollPhysics(),
+                          child: Column(
                             children: [
-                              // Profile Picture
+                              // Header Profile Section
                               Container(
-                                width: 100, //jangan ubah ukuran ini!
-                                height: 100, //jangan ubah ukuran ini!
-                                decoration: BoxDecoration(
-                                  shape: BoxShape.circle,
-                                  border: Border.all(
-                                    color: Colors.white,
-                                    width: 3,
+                                width: double.infinity,
+                                decoration: const BoxDecoration(
+                                  gradient: LinearGradient(
+                                    begin: Alignment.topLeft,
+                                    end: Alignment.bottomRight,
+                                    colors: [
+                                      Color(0xFF059669), // Teal-600 (konsisten dengan home)
+                                      Color(0xFF047857), // Teal-700 (konsisten dengan home)
+                                    ],
+                                  ),
+                                  borderRadius: BorderRadius.only(
+                                    bottomLeft: Radius.circular(30),
+                                    bottomRight: Radius.circular(30),
                                   ),
                                 ),
-                                child: const CircleAvatar(
-                                  radius: 45, //jangan ubah ukuran ini!
-                                  backgroundColor: Colors.grey,
-                                  backgroundImage: NetworkImage(
-                                    'https://via.placeholder.com/150x150/CCCCCC/FFFFFF?text=User',
+                                child: SafeArea(
+                                  child: Padding(
+                                    padding: const EdgeInsets.all(20.0),
+                                    child: Row(
+                                      children: [
+                                        // Profile Picture
+                                        GestureDetector(
+                                          onTap: _showProfileImageDialog,
+                                          child: Container(
+                                            width: 100, //jangan ubah ukuran ini!
+                                            height: 100, //jangan ubah ukuran ini!
+                                            decoration: BoxDecoration(
+                                              shape: BoxShape.circle,
+                                              border: Border.all(
+                                                color: Colors.white,
+                                                width: 3,
+                                              ),
+                                            ),
+                                            child: CircleAvatar(
+                                              radius: 45, //jangan ubah ukuran ini!
+                                              backgroundColor: Colors.grey,
+                                              backgroundImage: _profileImageBytes != null
+                                                  ? MemoryImage(_profileImageBytes!)
+                                                  : const NetworkImage(
+                                                      'https://via.placeholder.com/150x150/CCCCCC/FFFFFF?text=User',
+                                                    ) as ImageProvider,
+                                            ),
+                                          ),
+                                        ),
+                                        const SizedBox(width: 20),
+                                        
+                                        // Profile Info
+                                        Expanded(
+                                          child: Column(
+                                            crossAxisAlignment: CrossAxisAlignment.start,
+                                            children: [
+                                              // Name
+                                              Text(
+                                                _profileData?.name ?? 'Loading...',
+                                                style: const TextStyle(
+                                                  fontSize: 18,
+                                                  fontWeight: FontWeight.bold,
+                                                  color: Colors.white,
+                                                ),
+                                              ),
+                                              const SizedBox(height: 6),
+                                              
+                                              // Phone Number
+                                              Text(
+                                                _profileData?.maskedPhoneNumber ?? 'Loading...',
+                                                style: const TextStyle(
+                                                  fontSize: 13,
+                                                  color: Colors.white70,
+                                                ),
+                                              ),
+                                              const SizedBox(height: 3),
+                                              
+                                              // Email
+                                              Text(
+                                                _profileData?.maskedEmail ?? 'Loading...',
+                                                style: const TextStyle(
+                                                  fontSize: 12,
+                                                  color: Colors.white70,
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                      ],
+                                    ),
                                   ),
                                 ),
                               ),
-                              const SizedBox(width: 20),
-                              
-                              // Profile Info
-                              Expanded(
+                      
+                              // Content Section
+                              Padding(
+                                padding: const EdgeInsets.all(20),
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                    // Name
-                                    Text(
-                                      _profileData?.name ?? 'Loading...',
-                                      style: const TextStyle(
+                                    // Pengaturan Section
+                                    const Text(
+                                      'Pengaturan',
+                                      style: TextStyle(
                                         fontSize: 18,
-                                        fontWeight: FontWeight.bold,
-                                        color: Colors.white,
+                                        fontWeight: FontWeight.w600,
+                                        color: Color(0xFF374151),
                                       ),
                                     ),
-                                    const SizedBox(height: 6),
+                                    const SizedBox(height: 16),
                                     
-                                    // Phone Number
-                                    Text(
-                                      _profileData?.maskedPhoneNumber ?? 'Loading...',
-                                      style: const TextStyle(
-                                        fontSize: 13,
-                                        color: Colors.white70,
-                                      ),
+                                    // Ubah Profil Menu
+                                    _buildMenuItem(
+                                      icon: 'assets/images/ubah-profile-icon.png',
+                                      title: 'Ubah Profil',
+                                      onTap: () async {
+                                        final result = await Navigator.push(
+                                          context,
+                                          MaterialPageRoute(
+                                            builder: (context) => const UbahProfilePage(),
+                                          ),
+                                        );
+                                        
+                                        // Refresh profile data if profile was updated
+                                        if (result == true) {
+                                          _loadUserProfile();
+                                          final token = await _storageService.getToken();
+                                          if (token != null) {
+                                            await _loadProfileImage(token);
+                                          }
+                                        }
+                                      },
                                     ),
-                                    const SizedBox(height: 3),
                                     
-                                    // Email
-                                    Text(
-                                      _profileData?.maskedEmail ?? 'Loading...',
-                                      style: const TextStyle(
-                                        fontSize: 12,
-                                        color: Colors.white70,
+                                    // Ubah Password Menu
+                                    _buildMenuItem(
+                                      icon: 'assets/images/ubah-password-icon.png',
+                                      title: 'Ubah Password',
+                                      onTap: () {
+                                        Navigator.pushNamed(context, '/ubah-password');
+                                      },
+                                    ),
+                                    
+                                    const SizedBox(height: 32),
+                                    
+                                    // Tentang Kami Section
+                                    const Text(
+                                      'Tentang Kami',
+                                      style: TextStyle(
+                                        fontSize: 18,
+                                        fontWeight: FontWeight.w600,
+                                        color: Color(0xFF374151),
                                       ),
                                     ),
+                                    const SizedBox(height: 16),
+                                    
+                                    // FAQ Menu
+                                    _buildMenuItem(
+                                      icon: 'assets/images/faq-icon.png',
+                                      title: 'FAQ',
+                                      onTap: () {
+                                        // TODO: Navigate to FAQ page
+                                      },
+                                    ),
+                                    
+                                    // Add extra padding to ensure content doesn't get cut off
+                                    const SizedBox(height: 100),
                                   ],
                                 ),
                               ),
@@ -202,106 +529,41 @@ class _ProfilePageState extends State<ProfilePage> {
                           ),
                         ),
                       ),
-                    ),
-          
-                    // Content Section
-                    Expanded(
-                      child: SingleChildScrollView(
-                        padding: const EdgeInsets.all(20),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            // Pengaturan Section
-                            const Text(
-                              'Pengaturan',
-                              style: TextStyle(
-                                fontSize: 18,
-                                fontWeight: FontWeight.w600,
-                                color: Color(0xFF374151),
+                      
+                      // Log Out Button - Sticky at bottom
+                      Container(
+                        color: const Color(0xFFF5F5F5),
+                        padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+                        child: SafeArea(
+                          top: false,
+                          child: SizedBox(
+                            width: double.infinity,
+                            child: ElevatedButton(
+                              onPressed: () {
+                                _showLogoutDialog(context);
+                              },
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: const Color(0xFFFEE2E2),
+                                foregroundColor: const Color(0xFFDC2626),
+                                elevation: 0,
+                                padding: const EdgeInsets.symmetric(vertical: 16),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(25),
+                                ),
                               ),
-                            ),
-                            const SizedBox(height: 16),
-                            
-                            // Ubah Profil Menu
-                            _buildMenuItem(
-                              icon: 'assets/images/ubah-profile-icon.png',
-                              title: 'Ubah Profil',
-                              onTap: () {
-                                Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (context) => const UbahProfilePage(),
-                                  ),
-                                );
-                              },
-                            ),
-                            
-                            // Ubah Password Menu
-                            _buildMenuItem(
-                              icon: 'assets/images/ubah-password-icon.png',
-                              title: 'Ubah Password',
-                              onTap: () {
-                                Navigator.pushNamed(context, '/ubah-password');
-                              },
-                            ),
-                            
-                            const SizedBox(height: 32),
-                            
-                            // Tentang Kami Section
-                            const Text(
-                              'Tentang Kami',
-                              style: TextStyle(
-                                fontSize: 18,
-                                fontWeight: FontWeight.w600,
-                                color: Color(0xFF374151),
+                              child: const Text(
+                                'Log Out',
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w600,
+                                ),
                               ),
-                            ),
-                            const SizedBox(height: 16),
-                            
-                            // FAQ Menu
-                            _buildMenuItem(
-                              icon: 'assets/images/faq-icon.png',
-                              title: 'FAQ',
-                              onTap: () {
-                                // TODO: Navigate to FAQ page
-                              },
-                            ),
-                            
-                            const SizedBox(height: 60),
-                          ],
-                        ),
-                      ),
-                    ),
-                    
-                    // Log Out Button
-                    Padding(
-                      padding: const EdgeInsets.all(20),
-                      child: SizedBox(
-                        width: double.infinity,
-                        child: ElevatedButton(
-                          onPressed: () {
-                            _showLogoutDialog(context);
-                          },
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color(0xFFFEE2E2),
-                            foregroundColor: const Color(0xFFDC2626),
-                            elevation: 0,
-                            padding: const EdgeInsets.symmetric(vertical: 16),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(25), // Ubah dari 12 ke 25 untuk rounded pill
-                            ),
-                          ),
-                          child: const Text(
-                            'Log Out',
-                            style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.w600,
                             ),
                           ),
                         ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
       bottomNavigationBar: const BottomNavigationWidget(currentIndex: 2),
     );

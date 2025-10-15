@@ -5,6 +5,7 @@ import '../models/notification_model.dart';
 import '../services/api_service.dart';
 import '../services/storage_service.dart';
 import '../widgets/bottom_navigation_widget.dart';
+import '../widgets/custommodals.dart';
 import 'delivery_detail_page.dart';
 
 class NotificationPage extends StatefulWidget {
@@ -188,11 +189,9 @@ class _NotificationPageState extends State<NotificationPage> {
           } catch (e) {
             print('Error handling notification tap: $e');
             if (mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Terjadi kesalahan saat membuka detail pengiriman'),
-                  duration: Duration(seconds: 2),
-                ),
+              CustomModals.showErrorModal(
+                context,
+                'Terjadi kesalahan saat membuka detail pengiriman',
               );
             }
           }
@@ -301,11 +300,9 @@ class _NotificationPageState extends State<NotificationPage> {
             ),
             onPressed: () {
               // Show menu or options
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Menu options'),
-                  duration: Duration(seconds: 1),
-                ),
+              CustomModals.showErrorModal(
+                context,
+                'Menu options',
               );
             },
           ),

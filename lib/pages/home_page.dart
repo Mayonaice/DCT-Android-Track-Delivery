@@ -28,6 +28,7 @@ class _HomePageState extends State<HomePage> {
   
   String userName = '';
   String userEmail = '';
+  Uint8List? _profileImageBytes; // Add profile image state
   
   // Filter states
   StatusFilterOption _selectedStatusFilter = StatusFilterOption.options.first;
@@ -125,9 +126,42 @@ class _HomePageState extends State<HomePage> {
       userEmail = email;
     });
     
+    // Load profile image immediately and concurrently with transactions
+    _loadProfileImage();
+    
     // Load transactions after getting user data
     if (email.isNotEmpty) {
       _loadTransactions();
+    }
+  }
+
+  // Load profile image from API
+  Future<void> _loadProfileImage() async {
+    try {
+      final token = await _storageService.getToken();
+      if (token != null && token.isNotEmpty) {
+        print('🖼️ DEBUG: Loading profile image...');
+        final response = await _apiService.getProfileImage(token);
+        print('🖼️ DEBUG: Profile image response: ${response != null ? 'received' : 'null'}');
+        
+        if (response != null && response['success'] == true && response['data'] != null) {
+          final imageBytes = response['data']['imageBytes'];
+          if (imageBytes != null && mounted) {
+            print('🖼️ DEBUG: Setting profile image bytes');
+            setState(() {
+              _profileImageBytes = imageBytes;
+            });
+          } else {
+            print('🖼️ DEBUG: Image bytes is null or widget not mounted');
+          }
+        } else {
+          print('🖼️ DEBUG: Profile image response unsuccessful or no data');
+        }
+      } else {
+        print('🖼️ DEBUG: No token available for profile image');
+      }
+    } catch (e) {
+      print('🚨 Error loading profile image in home page: $e');
     }
   }
 
@@ -297,7 +331,7 @@ class _HomePageState extends State<HomePage> {
                             ),
                           ],
                         ),
-                        // Profile Picture Placeholder
+                        // Profile Picture
                         Container(
                           width: 50,
                           height: 50,
@@ -309,10 +343,26 @@ class _HomePageState extends State<HomePage> {
                               width: 2,
                             ),
                           ),
-                          child: const Icon(
-                            Icons.person,
-                            color: Color(0xFF1B8B7A),
-                            size: 30,
+                          child: ClipOval(
+                            child: _profileImageBytes != null
+                                ? Image.memory(
+                                    _profileImageBytes!,
+                                    width: 50,
+                                    height: 50,
+                                    fit: BoxFit.cover,
+                                    errorBuilder: (context, error, stackTrace) {
+                                      return const Icon(
+                                        Icons.person,
+                                        color: Color(0xFF1B8B7A),
+                                        size: 30,
+                                      );
+                                    },
+                                  )
+                                : const Icon(
+                                    Icons.person,
+                                    color: Color(0xFF1B8B7A),
+                                    size: 30,
+                                  ),
                           ),
                         ),
                       ],

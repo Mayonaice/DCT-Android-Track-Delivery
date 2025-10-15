@@ -248,10 +248,9 @@ class _DeliveryDetailPageState extends State<DeliveryDetailPage> {
                   );
                 } else {
                   // Handle case when token is null
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Token tidak ditemukan, silakan login ulang'),
-                    ),
+                  CustomModals.showErrorModal(
+                    context,
+                    'Token tidak ditemukan, silakan login ulang',
                   );
                 }
               },

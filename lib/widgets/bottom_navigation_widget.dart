@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'dart:typed_data';
 import '../pages/home_page.dart';
 import '../pages/profile_page.dart';
 import '../pages/notification_page.dart';
@@ -21,6 +22,7 @@ class BottomNavigationWidget extends StatefulWidget {
 class _BottomNavigationWidgetState extends State<BottomNavigationWidget> {
   late int _selectedIndex;
   int _unreadCount = 0;
+  Uint8List? _profileImageBytes;
   final ApiService _apiService = ApiService();
   final StorageService _storageService = StorageService();
 
@@ -29,6 +31,17 @@ class _BottomNavigationWidgetState extends State<BottomNavigationWidget> {
     super.initState();
     _selectedIndex = widget.currentIndex;
     _loadUnreadCount();
+    _loadProfileImage();
+  }
+
+  @override
+  void didUpdateWidget(BottomNavigationWidget oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // Refresh profile image when widget is updated (e.g., when returning to a page)
+    if (oldWidget.currentIndex != widget.currentIndex) {
+      _selectedIndex = widget.currentIndex;
+      _loadProfileImage(); // Refresh profile image when switching pages
+    }
   }
 
   Future<void> _loadUnreadCount() async {
@@ -48,6 +61,28 @@ class _BottomNavigationWidgetState extends State<BottomNavigationWidget> {
     } catch (e) {
       print('Error loading unread count: $e');
     }
+  }
+
+  Future<void> _loadProfileImage() async {
+    try {
+      final token = await _storageService.getToken();
+      if (token != null) {
+        final response = await _apiService.getProfileImage(token);
+        if (response['success'] == true && response['data'] != null) {
+          if (mounted) {
+            setState(() {
+              _profileImageBytes = response['data']['imageBytes'];
+            });
+          }
+        }
+      }
+    } catch (e) {
+      print('Error loading profile image in navigation: $e');
+    }
+  }
+
+  void refreshProfileImage() {
+    _loadProfileImage();
   }
 
   void _onItemTapped(int index) {
@@ -142,8 +177,20 @@ class _BottomNavigationWidgetState extends State<BottomNavigationWidget> {
             ),
             label: 'Notifikasi',
           ),
-          const BottomNavigationBarItem(
-            icon: Icon(Icons.person_outline),
+          BottomNavigationBarItem(
+            icon: _profileImageBytes != null
+                ? Container(
+                    width: 24,
+                    height: 24,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      image: DecorationImage(
+                        image: MemoryImage(_profileImageBytes!),
+                        fit: BoxFit.cover,
+                      ),
+                    ),
+                  )
+                : const Icon(Icons.person_outline),
             label: 'Profil',
           ),
         ],

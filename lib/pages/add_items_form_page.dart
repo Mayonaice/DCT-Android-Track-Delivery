@@ -214,11 +214,9 @@ class _AddItemsFormPageState extends State<AddItemsFormPage> {
         }
       }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Error picking image: $e'),
-          backgroundColor: Colors.red,
-        ),
+      CustomModals.showErrorModal(
+        context,
+        'Error picking image: $e',
       );
     }
   }
@@ -436,8 +434,9 @@ class _AddItemsFormPageState extends State<AddItemsFormPage> {
                   
                   // Validasi form
                   if (_namaBarangController.text.isEmpty) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Nama barang harus diisi')),
+                    CustomModals.showErrorModal(
+                      context,
+                      'Nama barang harus diisi',
                     );
                     return;
                   }
