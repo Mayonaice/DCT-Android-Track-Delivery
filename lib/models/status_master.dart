@@ -16,14 +16,14 @@ class StatusMaster {
     ),
     4: StatusData(
       id: 4,
-      name: 'Dikonfirmasi Penerima',
-      iconPath: 'assets/images/icon-status4(dikonfirmasi).png',
+      name: 'Diterimna Target',
+      iconPath: 'assets/images/icon-status5(diterima).png',
       color: Color(0xFF10B981), // Hijau
     ),
     5: StatusData(
       id: 5,
-      name: 'Diterima Target',
-      iconPath: 'assets/images/icon-status5(diterima).png',
+      name: 'Dikonfirmasi Penerima',
+      iconPath: 'assets/images/icon-status4(dikonfirmasi).png',
       color: Color(0xFF10B981), // Hijau
     ),
   };

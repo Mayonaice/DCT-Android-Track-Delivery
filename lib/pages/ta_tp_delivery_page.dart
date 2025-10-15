@@ -286,20 +286,23 @@ class _TaTpDeliveryPageState extends State<TaTpDeliveryPage> {
       }
       print('🔍 DEBUG: Token retrieved successfully, length: ${token.length}');
 
-      print('🔍 DEBUG: Preparing API call...');
-      print('🔍 DEBUG: Endpoint: Transaction/Trx/Receive');
-      print('🔍 DEBUG: Query params: DeliveryCode=${widget.deliveryCode}');
+      // Determine endpoint based on role and status
+       final endpoint = _getEndpointForRoleAndStatus();
+       
+       print('🔍 DEBUG: Preparing API call...');
+       print('🔍 DEBUG: Endpoint: $endpoint');
+       print('🔍 DEBUG: Query params: DeliveryCode=${widget.deliveryCode}');
 
-      // Hit API endpoint
-      print('🔍 DEBUG: Calling API...');
-      final response = await _apiService.post(
-        'Transaction/Trx/Receive',
-        photoBody,
-        token: token,
-        queryParams: {
-          'DeliveryCode': widget.deliveryCode,
-        },
-      );
+       // Hit API endpoint
+       print('🔍 DEBUG: Calling API...');
+       final response = await _apiService.post(
+         endpoint,
+         photoBody,
+         token: token,
+         queryParams: {
+           'DeliveryCode': widget.deliveryCode,
+         },
+       );
 
       print('🔍 DEBUG: API call completed');
       print('🔍 DEBUG: Full response: $response');
@@ -628,23 +631,39 @@ class _TaTpDeliveryPageState extends State<TaTpDeliveryPage> {
   }
 
   bool _isButtonEnabled() {
-    // TP role: button enabled when status is "2"
-    // TA role: button enabled when status is "3"
-    // Special case: TA role with status "2" and only 1 consignee bypasses normal rule
-    // Exception: bypass does NOT apply if status is "4" (already received by target)
+    final statusInt = int.tryParse(widget.status) ?? 0;
+    
+    print('🔍 DEBUG: Checking button enabled for role: ${widget.userRole}, status: ${widget.status}');
     
     if (widget.userRole == UserRole.tp) {
-      return widget.status == "2";
+      // TP role: button enabled when status is "2"
+      final enabled = widget.status == "2";
+      print('🔍 DEBUG: TP role - status ${widget.status} - button enabled: $enabled');
+      return enabled;
     } else if (widget.userRole == UserRole.ta) {
-      // Check if there's only 1 consignee and status is "2" - bypass normal TA rule
+      // Special case: TA role with status "2" and only 1 consignee bypasses normal rule
       // BUT NOT if status is "4" (already received by target)
       if (widget.status == "2" && widget.status != "4" && _deliveryData != null && _deliveryData!.consignees.length == 1) {
         print('🔍 DEBUG: TA role bypass - status "2" with single consignee, enabling button');
         return true;
       }
-      // Normal TA rule: enabled when status is "3"
-      return widget.status == "3";
+      
+      // Normal TA rules:
+      // - Status 3: enabled (uses Trx/Receive endpoint, same as TP)
+      // - Status 4: enabled (uses Trx/Confirm endpoint)
+      if (statusInt == 3) {
+        print('🔍 DEBUG: TA role - status 3 - button enabled: true');
+        return true;
+      } else if (statusInt == 4) {
+        print('🔍 DEBUG: TA role - status 4 - button enabled: true');
+        return true;
+      } else {
+        print('🔍 DEBUG: TA role - status ${widget.status} - button enabled: false');
+        return false;
+      }
     }
+    
+    print('🔍 DEBUG: Unknown role - button enabled: false');
     return false;
   }
 
@@ -824,12 +843,12 @@ class _TaTpDeliveryPageState extends State<TaTpDeliveryPage> {
                             ),
                           ),
                           child: Text(
-                            widget.userRole == UserRole.tp ? 'Terima Barang' : 'Konfirmasi Terima',
-                            style: const TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
+                             _getButtonTextForRoleAndStatus(),
+                             style: const TextStyle(
+                               fontSize: 18,
+                               fontWeight: FontWeight.w600,
+                             ),
+                           ),
                         ),
                       ),
                       const SizedBox(height: 30),
@@ -837,6 +856,68 @@ class _TaTpDeliveryPageState extends State<TaTpDeliveryPage> {
                   ),
                 ),
     );
+  }
+
+  // Helper method to determine endpoint based on role and status
+  String _getEndpointForRoleAndStatus() {
+    final statusInt = int.tryParse(widget.status) ?? 0;
+    
+    print('🔍 DEBUG: Determining endpoint for role: ${widget.userRole}, status: ${widget.status}');
+    
+    if (widget.userRole == UserRole.tp) {
+      // TP always uses Trx/Receive (only for status 2)
+      print('🔍 DEBUG: TP role - using Trx/Receive endpoint');
+      return 'Transaction/Trx/Receive';
+    } else if (widget.userRole == UserRole.ta) {
+      if (statusInt == 3) {
+        // TA with status 3 uses Trx/Receive (same as TP)
+        print('🔍 DEBUG: TA role with status 3 - using Trx/Receive endpoint');
+        return 'Transaction/Trx/Receive';
+      } else if (statusInt == 4) {
+        // TA with status 4 uses Trx/Confirm
+        print('🔍 DEBUG: TA role with status 4 - using Trx/Confirm endpoint');
+        return 'Transaction/Trx/Confirm';
+      } else {
+        // Default fallback for other statuses
+        print('🔍 DEBUG: TA role with status ${widget.status} - using default Trx/Receive endpoint');
+        return 'Transaction/Trx/Receive';
+      }
+    }
+    
+    // Default fallback
+    print('🔍 DEBUG: Default fallback - using Trx/Receive endpoint');
+    return 'Transaction/Trx/Receive';
+  }
+
+  // Helper method to determine button text based on role and status
+  String _getButtonTextForRoleAndStatus() {
+    final statusInt = int.tryParse(widget.status) ?? 0;
+    
+    print('🔍 DEBUG: Determining button text for role: ${widget.userRole}, status: ${widget.status}');
+    
+    if (widget.userRole == UserRole.tp) {
+      // TP always shows "Terima Barang"
+      print('🔍 DEBUG: TP role - button text: Terima Barang');
+      return 'Terima Barang';
+    } else if (widget.userRole == UserRole.ta) {
+      if (statusInt == 3) {
+        // TA with status 3 shows "Terima Barang" (same as TP)
+        print('🔍 DEBUG: TA role with status 3 - button text: Terima Barang');
+        return 'Terima Barang';
+      } else if (statusInt == 4) {
+        // TA with status 4 shows "Konfirmasi Terima"
+        print('🔍 DEBUG: TA role with status 4 - button text: Konfirmasi Terima');
+        return 'Konfirmasi Terima';
+      } else {
+        // Default for other statuses
+        print('🔍 DEBUG: TA role with status ${widget.status} - button text: Konfirmasi Terima');
+        return 'Konfirmasi Terima';
+      }
+    }
+    
+    // Default fallback
+    print('🔍 DEBUG: Default fallback - button text: Terima Barang');
+    return 'Terima Barang';
   }
 
   @override

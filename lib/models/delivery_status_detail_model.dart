@@ -50,14 +50,25 @@ class DeliveryStatusDetailData {
   // Helper method untuk menentukan status berdasarkan description
   int getStatusLevel() {
     final desc = description.toLowerCase();
-    if (desc.contains('pengiriman diterima oleh target')) {
+    
+    // Icon 4: Pengiriman dikonfirmasi penerima
+    if (desc.contains('pengiriman dikonfirmasi oleh target')) {
       return 4; // Semua icon aktif (1-4)
-    } else if (desc.contains('pengiriman diterima oleh perantara')) {
+    } 
+    // Icon 3: Pengiriman diterima target
+    else if (desc.contains('pengiriman diterima oleh target')) {
       return 3; // Icon 1-3 aktif
-    } else if (desc.contains('pengiriman disubmit')) {
+    } 
+    // Icon 2: Pengiriman diterima perantara
+    else if (desc.contains('pengiriman diterima oleh perantara')) {
       return 2; // Icon 1-2 aktif
-    } else {
+    } 
+    // Icon 1: Pengiriman dibuat atau disubmit
+    else if (desc.contains('pengiriman dibuat') || desc.contains('pengiriman disubmit')) {
       return 1; // Hanya icon 1 aktif
+    } 
+    else {
+      return 1; // Default hanya icon 1 aktif
     }
   }
 

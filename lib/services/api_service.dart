@@ -7,6 +7,7 @@ import '../models/send_goods_model.dart';
 import '../models/login_code_model.dart';
 import '../models/delivery_transaction_detail_model.dart';
 import '../models/delivery_status_detail_model.dart';
+import '../models/notification_model.dart';
 
 class ApiService {
   static final ApiService _instance = ApiService._internal();
@@ -960,6 +961,75 @@ class ApiService {
         message: 'Terjadi kesalahan koneksi: ${e.toString()}',
         data: [],
       );
+    }
+  }
+
+  // Get Notifications/Inbox API
+  Future<NotificationResponse?> getNotifications(String token) async {
+    try {
+      print('🔍 DEBUG: Getting notifications');
+      print('🔍 DEBUG: Using token: ${token.substring(0, 20)}...');
+      
+      final url = Uri.parse('${Config.baseUrl}Users/Inbox');
+      print('🔍 DEBUG: Notification URL: $url');
+      
+      final response = await http.get(
+        url,
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+      );
+
+      print('🔍 DEBUG: Notification response status: ${response.statusCode}');
+      print('🔍 DEBUG: Notification response body: ${response.body}');
+
+      if (response.statusCode == 200) {
+        final responseData = jsonDecode(response.body);
+        return NotificationResponse.fromJson(responseData);
+      } else {
+        print('❌ DEBUG: Failed to get notifications - Status: ${response.statusCode}');
+        return null;
+      }
+    } catch (e) {
+      print('❌ DEBUG: Error getting notifications: $e');
+      return null;
+    }
+  }
+
+  // Mark Notification as Read API
+  Future<bool> markNotificationAsRead(String seqNo, String token) async {
+    try {
+      print('🔍 DEBUG: Marking notification as read');
+      print('🔍 DEBUG: SeqNo: $seqNo');
+      print('🔍 DEBUG: Using token: ${token.substring(0, 20)}...');
+      
+      final url = Uri.parse('${Config.baseUrl}Users/Inbox/Read?SeqNo=$seqNo');
+      print('🔍 DEBUG: Mark as read URL: $url');
+      
+      final response = await http.post(
+        url,
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+      );
+
+      print('🔍 DEBUG: Mark as read response status: ${response.statusCode}');
+      print('🔍 DEBUG: Mark as read response body: ${response.body}');
+
+      if (response.statusCode == 200) {
+        final responseData = jsonDecode(response.body);
+        return responseData['ok'] == true || responseData['success'] == true;
+      } else {
+        print('❌ DEBUG: Failed to mark notification as read - Status: ${response.statusCode}');
+        return false;
+      }
+    } catch (e) {
+      print('❌ DEBUG: Error marking notification as read: $e');
+      return false;
     }
   }
 }

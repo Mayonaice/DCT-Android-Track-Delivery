@@ -141,8 +141,8 @@ class _DeliveryStatusDetailPageState extends State<DeliveryStatusDetailPage> {
     List<String> iconPaths = [
       'assets/images/icon-status2(submitted).png',
       'assets/images/icon-status3(diterimaperantara).png',
-      'assets/images/icon-status4(dikonfirmasi).png',
       'assets/images/icon-status5(diterima).png',
+      'assets/images/icon-status4(dikonfirmasi).png',
     ];
 
     return Container(
@@ -241,6 +241,15 @@ class _DeliveryStatusDetailPageState extends State<DeliveryStatusDetailPage> {
   List<Widget> _buildCheckmarksWithLines(int iconsToShow) {
     List<Widget> widgets = [];
     
+    // Jika hanya 1 icon, tampilkan checkmark tanpa garis hijau
+    if (iconsToShow == 1) {
+      widgets.add(Expanded(child: Container()));
+      widgets.add(Container(width: 43, child: Center(child: _buildCheckmark(0))));
+      widgets.add(Expanded(child: Container()));
+      return widgets;
+    }
+    
+    // Untuk 2 atau lebih icon, tampilkan dengan garis penghubung
     for (int i = 0; i < iconsToShow; i++) {
       if (i == 0) {
         // First checkmark - add spacing to align with icon center
