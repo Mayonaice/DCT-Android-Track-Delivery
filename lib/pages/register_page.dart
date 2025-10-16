@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'login_with_code_page.dart';
 import 'otp_verification_page.dart';
+import 'dct_web_register_page.dart';
 import '../services/api_service.dart';
 import '../widgets/custommodals.dart';
 
@@ -540,7 +541,12 @@ class _RegisterPageState extends State<RegisterPage> {
                 height: 50,
                 child: OutlinedButton(
                   onPressed: () {
-                    // Handle DCT Web registration
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const DctWebRegisterPage(),
+                      ),
+                    );
                   },
                   style: OutlinedButton.styleFrom(
                     side: const BorderSide(

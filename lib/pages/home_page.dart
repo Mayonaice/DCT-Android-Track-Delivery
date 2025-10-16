@@ -43,8 +43,42 @@ class _HomePageState extends State<HomePage> {
   @override
   void initState() {
     super.initState();
-    _loadUserData();
+    _checkAuthenticationAndLoadData();
     _searchController.addListener(_onSearchChanged);
+  }
+
+  Future<void> _checkAuthenticationAndLoadData() async {
+    // Check if user is logged in
+    final isLoggedIn = await _storageService.isLoggedIn();
+    final token = await _storageService.getToken();
+    
+    if (!isLoggedIn || token == null || token.isEmpty) {
+      // User is not logged in, redirect to login page
+      if (mounted) {
+        Navigator.of(context).pushNamedAndRemoveUntil(
+          '/login', 
+          (Route<dynamic> route) => false,
+        );
+      }
+      return;
+    }
+    
+    // Check if token is expired
+    final isTokenExpired = await _storageService.isTokenExpired();
+    if (isTokenExpired) {
+      // Token is expired, clear login data and redirect to login
+      await _storageService.clearLoginData();
+      if (mounted) {
+        Navigator.of(context).pushNamedAndRemoveUntil(
+          '/login', 
+          (Route<dynamic> route) => false,
+        );
+      }
+      return;
+    }
+    
+    // User is authenticated, load data
+    _loadUserData();
   }
 
   @override

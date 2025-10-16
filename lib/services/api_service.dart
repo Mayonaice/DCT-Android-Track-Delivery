@@ -151,6 +151,140 @@ class ApiService {
     }
   }
 
+  // DaftarByDCT API
+  Future<Map<String, dynamic>> daftarByDCT(String username, String password) async {
+    try {
+      final url = Uri.parse('${Config.baseUrl}Users/DaftarByDCT');
+      
+      print('🔍 DEBUG: DaftarByDCT URL: $url');
+      print('🔍 DEBUG: Request body: {"username": "$username", "password": "***"}');
+      
+      final response = await http.post(
+        url,
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+        body: jsonEncode({
+          'username': username,
+          'password': password,
+        }),
+      );
+
+      print('🔍 DEBUG: Response status: ${response.statusCode}');
+      print('🔍 DEBUG: Response body: ${response.body}');
+
+      // IMPORTANT: Handle empty or invalid JSON response
+      Map<String, dynamic> responseData;
+      try {
+        if (response.body.isEmpty) {
+          print('🚨 DEBUG: Response body is empty!');
+          return {
+            'success': false,
+            'message': 'Server mengembalikan response kosong',
+            'data': null,
+          };
+        }
+        responseData = jsonDecode(response.body);
+        print('🔍 DEBUG: Parsed response data: $responseData');
+      } catch (jsonError) {
+        print('🚨 DEBUG: JSON parsing error: $jsonError');
+        return {
+          'success': false,
+          'message': 'Server mengembalikan response yang tidak valid: ${response.body}',
+          'data': null,
+        };
+      }
+
+      if (response.statusCode == 200) {
+        // IMPORTANT: Check if API response indicates success using 'ok' field
+        bool isApiSuccess = responseData['ok'] == true;
+        
+        if (isApiSuccess && responseData['data'] != null) {
+          // Validate that we have tokenAccess in the response
+          // Check multiple possible locations for the token
+          var tokenAccess;
+          
+          // First check in data.application.tokenAccess (current API structure)
+          if (responseData['data']['application'] != null) {
+            tokenAccess = responseData['data']['application']['tokenAccess'];
+          }
+          
+          // Fallback to other possible locations
+          if (tokenAccess == null) {
+            tokenAccess = responseData['data']['tokenAccess'] ?? 
+                         responseData['tokenAccess'] ?? 
+                         responseData['token'] ?? 
+                         responseData['access_token'];
+          }
+          
+          print('🔍 DEBUG: Looking for token in response structure...');
+          print('🔍 DEBUG: Found tokenAccess: ${tokenAccess != null ? "YES" : "NO"}');
+          
+          if (tokenAccess != null && tokenAccess.toString().isNotEmpty) {
+            print('✅ DEBUG: DaftarByDCT successful with valid token: ${tokenAccess.toString().substring(0, 20)}...');
+            return {
+              'success': true,
+              'data': responseData['data'],
+            };
+          } else {
+            print('❌ DEBUG: DaftarByDCT failed - no valid token in response');
+            print('🔍 DEBUG: Response structure: ${responseData.toString()}');
+            return {
+              'success': false,
+              'message': 'Daftar gagal - token tidak valid',
+              'data': responseData,
+            };
+          }
+        } else {
+          // API returned ok: false
+          String errorMessage = 'Daftar gagal';
+          if (responseData is Map<String, dynamic>) {
+            errorMessage = responseData['message'] ?? 
+                          responseData['error'] ?? 
+                          responseData['msg'] ?? 
+                          responseData['Message'] ?? 
+                          responseData['Error'] ?? 
+                          'Daftar gagal - kredensial tidak valid';
+          }
+          
+          print('❌ DEBUG: API returned failure: $errorMessage');
+          return {
+            'success': false,
+            'message': errorMessage,
+            'data': responseData,
+          };
+        }
+      } else {
+        // IMPORTANT: Always use message from API response for error notifications
+        String errorMessage = 'Daftar gagal';
+        if (responseData is Map<String, dynamic>) {
+          errorMessage = responseData['message'] ?? 
+                        responseData['error'] ?? 
+                        responseData['msg'] ?? 
+                        responseData['Message'] ?? 
+                        responseData['Error'] ?? 
+                        'Daftar gagal - tidak ada pesan error dari server';
+        }
+        
+        print('❌ DEBUG: DaftarByDCT failed with message: $errorMessage');
+        
+        return {
+          'success': false,
+          'message': errorMessage,
+          'data': responseData,
+        };
+      }
+    } catch (e) {
+      print('🚨 DEBUG: Exception occurred: $e');
+      return {
+        'success': false,
+        'message': 'Terjadi kesalahan koneksi: ${e.toString()}',
+        'data': null,
+      };
+    }
+  }
+
   // Generic GET request with token
   Future<Map<String, dynamic>> get(String endpoint, {String? token, Map<String, String>? queryParams}) async {
     try {
