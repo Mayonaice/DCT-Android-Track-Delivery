@@ -7,10 +7,14 @@ import 'dart:typed_data';
 import '../models/delivery_transaction_detail_model.dart';
 import '../services/api_service.dart';
 import '../services/storage_service.dart';
+import '../services/photo_cache_service.dart';
+import '../services/pdf_service.dart';
+import '../services/watermark_service.dart';
 import '../enums/user_role.dart';
 import '../widgets/custommodals.dart';
 import 'ta_tp_item_detail_page.dart';
 import 'image_preview_page.dart';
+import 'photo_preview_page.dart';
 
 class TaTpDeliveryPage extends StatefulWidget {
   final String deliveryCode;
@@ -39,7 +43,7 @@ class _TaTpDeliveryPageState extends State<TaTpDeliveryPage> {
   DeliveryTransactionDetailData? _deliveryData;
   bool _isLoading = true;
   String? _errorMessage;
-  File? _selectedImage;
+  List<File> _selectedImages = [];
 
   @override
   void initState() {
@@ -59,7 +63,7 @@ class _TaTpDeliveryPageState extends State<TaTpDeliveryPage> {
         _isLoading = true;
         _errorMessage = null;
         // Reset foto yang sudah dipilih saat refresh
-        _selectedImage = null;
+        _selectedImages.clear();
       });
 
       final response = await _apiService.getTransactionDetail(widget.deliveryCode, widget.token);
@@ -90,6 +94,16 @@ class _TaTpDeliveryPageState extends State<TaTpDeliveryPage> {
   }
 
   Future<void> _showImageSourceDialog() async {
+    // Check if there are existing photos in cache
+    final photoCacheService = PhotoCacheService();
+    final cachedPhotos = await photoCacheService.getItemPhotos('ta_tp_${widget.deliveryCode}');
+    if (cachedPhotos.isNotEmpty) {
+      // If photos exist, go directly to preview page
+      _openPhotoPreview();
+      return;
+    }
+    
+    // If no photos exist, show source selection dialog
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.white,
@@ -198,28 +212,104 @@ class _TaTpDeliveryPageState extends State<TaTpDeliveryPage> {
     );
   }
 
+  void _openPhotoPreview() async {
+    final result = await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => PhotoPreviewPage(
+          itemId: 'ta_tp_${widget.deliveryCode}',
+          existingPhotos: _selectedImages.isNotEmpty ? _selectedImages : null,
+        ),
+      ),
+    );
+    
+    if (result != null && result is List<File>) {
+      setState(() {
+        _selectedImages = result;
+      });
+    }
+  }
+
   Future<void> _pickImage(ImageSource source) async {
     try {
       final XFile? image = await _picker.pickImage(
         source: source,
-        maxWidth: 1920,
-        maxHeight: 1080,
+        maxWidth: 1024,
+        maxHeight: 1024,
         imageQuality: 85,
       );
       
       if (image != null) {
-        setState(() {
-          _selectedImage = File(image.path);
-        });
+        // Validasi format gambar
+        final String fileName = image.path.toLowerCase();
+        final List<String> allowedExtensions = ['.png', '.jpg', '.jpeg'];
+        
+        bool isValidFormat = allowedExtensions.any((ext) => fileName.endsWith(ext));
+        
+        if (!isValidFormat) {
+          // Tampilkan pesan error menggunakan CustomModals
+          CustomModals.showErrorModal(
+            context, 
+            'Format gambar tidak didukung. Hanya file PNG, JPG, dan JPEG yang diperbolehkan.',
+          );
+          return;
+        }
+        
+        final File imageFile = File(image.path);
+        
+        // Add watermark to the image if it's from camera
+        File finalImageFile = imageFile;
+        if (source == ImageSource.camera) {
+          print('🔍 DEBUG: Adding watermark to camera image...');
+          finalImageFile = await WatermarkService.addWatermarkToImage(imageFile);
+          print('🔍 DEBUG: Watermark added successfully');
+        }
+        
+        if (source == ImageSource.camera) {
+          // For camera, go to preview page
+          final result = await Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => PhotoPreviewPage(
+                initialImagePath: finalImageFile.path,
+                itemId: 'ta_tp_${widget.deliveryCode}',
+                existingPhotos: _selectedImages.isNotEmpty ? _selectedImages : null,
+              ),
+            ),
+          );
+          
+          if (result != null && result is List<File>) {
+            setState(() {
+              _selectedImages = result;
+            });
+          }
+        } else {
+          // For gallery, add directly to the list and go to preview
+          List<File> currentImages = List.from(_selectedImages);
+          currentImages.add(finalImageFile);
+          
+          final result = await Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => PhotoPreviewPage(
+                itemId: 'ta_tp_${widget.deliveryCode}',
+                existingPhotos: currentImages,
+              ),
+            ),
+          );
+          
+          if (result != null && result is List<File>) {
+            setState(() {
+              _selectedImages = result;
+            });
+          }
+        }
       }
     } catch (e) {
-      print('Error picking image: $e');
-      if (mounted) {
-        CustomModals.showErrorModal(
-          context,
-          'Error memilih gambar: $e',
-        );
-      }
+      CustomModals.showErrorModal(
+        context,
+        'Error picking image: $e',
+      );
     }
   }
 
@@ -239,40 +329,51 @@ class _TaTpDeliveryPageState extends State<TaTpDeliveryPage> {
   Future<bool> _postReceiveData() async {
     try {
       print('🔍 DEBUG: Starting _postReceiveData...');
-      print('🔍 DEBUG: Selected image path: ${_selectedImage?.path}');
+      print('🔍 DEBUG: Selected images count: ${_selectedImages.length}');
       print('🔍 DEBUG: Delivery code: ${widget.deliveryCode}');
       print('🔍 DEBUG: Description: ${_descriptionController.text.trim()}');
 
-      // Convert image to base64
-      print('🔍 DEBUG: Converting image to base64...');
-      final base64Image = await _convertImageToBase64(_selectedImage!);
-      if (base64Image == null) {
-        print('🚨 DEBUG: Failed to convert image to base64');
+      if (_selectedImages.isEmpty) {
+        print('🚨 DEBUG: No images selected');
         CustomModals.showErrorModal(
           context,
-          'Gagal memproses foto. Silakan coba lagi.',
+          'Pilih foto terlebih dahulu.',
         );
         return false;
       }
-      print('🔍 DEBUG: Base64 conversion successful, length: ${base64Image.length}');
+
+      // Convert all images to base64
+      print('🔍 DEBUG: Converting images to base64...');
+      List<Map<String, String>> photoList = [];
+      
+      for (int i = 0; i < _selectedImages.length; i++) {
+        final base64Image = await _convertImageToBase64(_selectedImages[i]);
+        if (base64Image == null) {
+          print('🚨 DEBUG: Failed to convert image ${i + 1} to base64');
+          CustomModals.showErrorModal(
+            context,
+            'Gagal memproses foto ${i + 1}. Silakan coba lagi.',
+          );
+          return false;
+        }
+        
+        photoList.add({
+          "photo64": base64Image,
+          "filename": "delivery_${widget.deliveryCode}_${DateTime.now().millisecondsSinceEpoch}_${i + 1}.jpg",
+          "description": _descriptionController.text.trim().isEmpty 
+              ? "Foto bukti terima barang ${i + 1}" 
+              : "${_descriptionController.text.trim()} - Foto ${i + 1}",
+        });
+      }
+      
+      print('🔍 DEBUG: Base64 conversion successful for ${photoList.length} images');
 
       // Prepare photo body
       final photoBody = {
-        "photo": [
-          {
-            "photo64": base64Image,
-            "filename": "delivery_${widget.deliveryCode}_${DateTime.now().millisecondsSinceEpoch}.jpg",
-            "description": _descriptionController.text.trim().isEmpty 
-                ? "Foto bukti terima barang" 
-                : _descriptionController.text.trim(),
-          }
-        ]
+        "photo": photoList
       };
 
-      print('🔍 DEBUG: Photo body prepared:');
-      print('🔍 DEBUG: - filename: ${photoBody["photo"]![0]["filename"]}');
-      print('🔍 DEBUG: - description: ${photoBody["photo"]![0]["description"]}');
-      print('🔍 DEBUG: - photo64 length: ${photoBody["photo"]![0]["photo64"]?.length}');
+      print('🔍 DEBUG: Photo body prepared with ${photoList.length} photos');
 
       // Get token from storage
       print('🔍 DEBUG: Getting token from storage...');
@@ -288,22 +389,22 @@ class _TaTpDeliveryPageState extends State<TaTpDeliveryPage> {
       print('🔍 DEBUG: Token retrieved successfully, length: ${token.length}');
 
       // Determine endpoint based on role and status
-       final endpoint = _getEndpointForRoleAndStatus();
-       
-       print('🔍 DEBUG: Preparing API call...');
-       print('🔍 DEBUG: Endpoint: $endpoint');
-       print('🔍 DEBUG: Query params: DeliveryCode=${widget.deliveryCode}');
+      final endpoint = _getEndpointForRoleAndStatus();
+      
+      print('🔍 DEBUG: Preparing API call...');
+      print('🔍 DEBUG: Endpoint: $endpoint');
+      print('🔍 DEBUG: Query params: DeliveryCode=${widget.deliveryCode}');
 
-       // Hit API endpoint
-       print('🔍 DEBUG: Calling API...');
-       final response = await _apiService.post(
-         endpoint,
-         photoBody,
-         token: token,
-         queryParams: {
-           'DeliveryCode': widget.deliveryCode,
-         },
-       );
+      // Hit API endpoint
+      print('🔍 DEBUG: Calling API...');
+      final response = await _apiService.post(
+        endpoint,
+        photoBody,
+        token: token,
+        queryParams: {
+          'DeliveryCode': widget.deliveryCode,
+        },
+      );
 
       print('🔍 DEBUG: API call completed');
       print('🔍 DEBUG: Full response: $response');
@@ -318,7 +419,77 @@ class _TaTpDeliveryPageState extends State<TaTpDeliveryPage> {
       if (responseData != null && responseData['ok'] == true) {
         print('🔍 DEBUG: Response data ok is true - SUCCESS!');
         
-        // Gunakan WidgetsBinding untuk memastikan frame selesai sebelum menampilkan modal
+        // Check if this is TA role performing "Terima Barang" action
+        bool shouldCallReceiveDocuments = false;
+        final statusInt = int.tryParse(widget.status) ?? 0;
+        
+        if (widget.userRole == UserRole.ta) {
+          // TA with status 3 (normal "Terima Barang") or status 2 with single consignee (bypass)
+          if (statusInt == 3 || (statusInt == 2 && _deliveryData != null && _deliveryData!.consignees.length == 1)) {
+            shouldCallReceiveDocuments = true;
+            print('🔍 DEBUG: TA role performing "Terima Barang" - will call ReceiveDocuments endpoint');
+          }
+        }
+        
+        // If TA role performing "Terima Barang", also hit ReceiveDocuments endpoint
+        if (shouldCallReceiveDocuments) {
+          print('🔍 DEBUG: Generating PDF first before calling ReceiveDocuments...');
+          
+          try {
+            // Generate PDF first
+            final pdfFile = await PdfService.generateReceiptPdf(
+              deliveryData: _deliveryData!,
+              deliveryCode: widget.deliveryCode,
+              senderName: _deliveryData?.consignees.isNotEmpty == true ? _deliveryData!.consignees.first.name : 'N/A',
+              recipientLocation: 'Lokal', // You may need to get this from delivery data
+            );
+            
+            print('🔍 DEBUG: PDF generated successfully at: ${pdfFile.path}');
+            
+            // Convert PDF to base64 for API upload
+            final pdfBytes = await pdfFile.readAsBytes();
+            final pdfBase64 = base64Encode(pdfBytes);
+            
+            // Prepare body with PDF file for ReceiveDocuments (matching ReceiveGoods model)
+            final receiveDocumentsBody = {
+              "Photo": [
+                {
+                  "Photo64": pdfBase64,
+                  "Filename": "receipt_${widget.deliveryCode}.pdf",
+                  "Description": "Tanda terima barang untuk delivery ${widget.deliveryCode}"
+                }
+              ]
+            };
+            
+            print('🔍 DEBUG: Calling ReceiveDocuments endpoint with PDF...');
+            
+            final receiveDocumentsResponse = await _apiService.post(
+              'Transaction2/Trx/ReceiveDocuments',
+              receiveDocumentsBody,
+              token: token,
+              queryParams: {
+                'DeliveryCode': widget.deliveryCode,
+              },
+            );
+            
+            print('🔍 DEBUG: ReceiveDocuments API call completed');
+            print('🔍 DEBUG: ReceiveDocuments response: $receiveDocumentsResponse');
+            
+            final receiveDocumentsData = receiveDocumentsResponse['data'];
+            
+            if (receiveDocumentsData != null && receiveDocumentsData['ok'] == true) {
+              print('🔍 DEBUG: ReceiveDocuments call successful with PDF!');
+            } else {
+              print('🚨 DEBUG: ReceiveDocuments call failed: ${receiveDocumentsData?['message']}');
+              // Don't fail the entire operation if ReceiveDocuments fails
+            }
+          } catch (error) {
+            print('🚨 DEBUG: PDF generation or ReceiveDocuments API call exception: $error');
+            // Don't fail the entire operation if PDF generation or ReceiveDocuments fails
+          }
+        }
+        
+        // Show success modal regardless of ReceiveDocuments result
         WidgetsBinding.instance.addPostFrameCallback((_) {
           CustomModals.hideLoadingModal(context);
           print('🔍 DEBUG: Loading modal hidden, about to show success modal...');
@@ -326,8 +497,12 @@ class _TaTpDeliveryPageState extends State<TaTpDeliveryPage> {
           CustomModals.showSuccessModal(
             context,
             'Konfirmasi penerimaan barang berhasil!',
-            onOk: () {
+            onOk: () async {
               print('🔍 DEBUG: Success modal OK button pressed');
+              // Clear photo cache after successful post action
+              final photoCacheService = PhotoCacheService();
+              await photoCacheService.clearItemPhotos('ta_tp_${widget.deliveryCode}');
+              print('🔍 DEBUG: Photo cache cleared for ta_tp_${widget.deliveryCode}');
               // Refresh halaman setelah modal ditutup
               _loadDeliveryDetail();
             },
@@ -551,45 +726,74 @@ class _TaTpDeliveryPageState extends State<TaTpDeliveryPage> {
           ),
         ),
         const SizedBox(height: 20),
+        
+        // Photo and description in one row (matching add_items_form_page.dart)
         Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Single circular photo placeholder on the left
+            // Photo placeholder with multiple photo indicator
             Column(
               children: [
                 GestureDetector(
                   onTap: _showImageSourceDialog,
-                  child: Container(
-                    width: 100,
-                    height: 100,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      border: Border.all(
-                        color: const Color(0xFFE5E7EB),
-                        width: 2,
-                      ),
-                      color: _selectedImage != null ? null : const Color(0xFFF9FAFB),
-                    ),
-                    child: _selectedImage != null
-                        ? ClipOval(
-                            child: Image.file(
-                              _selectedImage!,
-                              width: 100,
-                              height: 100,
-                              fit: BoxFit.cover,
-                            ),
-                          )
-                        : const Icon(
-                            Icons.camera_alt_outlined,
-                            color: Color(0xFF9CA3AF),
-                            size: 24,
+                  child: Stack(
+                    children: [
+                      Container(
+                        width: 100,
+                        height: 100,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          border: Border.all(
+                            color: const Color(0xFFE5E7EB),
+                            width: 2,
                           ),
+                          color: _selectedImages.isNotEmpty ? null : const Color(0xFFF9FAFB),
+                        ),
+                        child: _selectedImages.isNotEmpty
+                            ? ClipOval(
+                                child: Image.file(
+                                  _selectedImages.first,
+                                  width: 100,
+                                  height: 100,
+                                  fit: BoxFit.cover,
+                                ),
+                              )
+                            : const Icon(
+                                Icons.camera_alt_outlined,
+                                color: Color(0xFF9CA3AF),
+                                size: 24,
+                              ),
+                      ),
+                      // Photo count indicator
+                      if (_selectedImages.length > 1)
+                        Positioned(
+                          right: 0,
+                          top: 0,
+                          child: Container(
+                            padding: const EdgeInsets.all(4),
+                            decoration: const BoxDecoration(
+                              color: Color(0xFF1B8B7A),
+                              shape: BoxShape.circle,
+                            ),
+                            child: Text(
+                              '${_selectedImages.length}',
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 12,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                        ),
+                    ],
                   ),
                 ),
                 const SizedBox(height: 8),
-                const Text(
-                  'Unggah Foto',
-                  style: TextStyle(
+                Text(
+                  _selectedImages.isEmpty 
+                      ? 'Foto Barang' 
+                      : '${_selectedImages.length} Foto',
+                  style: const TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.w500,
                     color: Color(0xFF374151),
@@ -598,7 +802,7 @@ class _TaTpDeliveryPageState extends State<TaTpDeliveryPage> {
               ],
             ),
             const SizedBox(width: 16),
-            // Description input field
+            // Description field
             Expanded(
               child: TextField(
                 controller: _descriptionController,
@@ -691,7 +895,7 @@ class _TaTpDeliveryPageState extends State<TaTpDeliveryPage> {
     }
 
     // Validasi foto terlebih dahulu sebelum show loading
-    if (_selectedImage == null) {
+    if (_selectedImages.isEmpty) {
       CustomModals.showErrorModal(
         context,
         'Upload foto bukti terima barang terlebih dahulu!',

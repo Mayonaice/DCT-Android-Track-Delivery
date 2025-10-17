@@ -52,6 +52,24 @@ dependencies:
   
   # Image picker for photo upload
   image_picker: ^1.0.4
+  
+  # Path provider for file system access
+  path_provider: ^2.1.1
+  
+  # PDF generation
+  pdf: ^3.10.7
+  
+  # PDF viewer
+  flutter_pdfview: ^1.3.2
+  
+  # Permission handler for file access
+  permission_handler: ^11.0.1
+  
+  # Location services
+  geolocator: ^10.1.0
+  
+  # Image editing for watermark
+  image: ^4.1.3
 
 dev_dependencies:
   flutter_test:

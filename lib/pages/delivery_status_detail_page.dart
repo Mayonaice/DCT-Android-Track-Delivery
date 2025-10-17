@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import '../models/delivery_status_detail_model.dart';
 import '../services/api_service.dart';
 import '../widgets/custommodals.dart';
+import '../widgets/view_only_photo_preview.dart';
+import '../widgets/photo_viewer_widget.dart';
 
 class DeliveryStatusDetailPage extends StatefulWidget {
   final String deliveryCode;
@@ -80,30 +82,18 @@ class _DeliveryStatusDetailPageState extends State<DeliveryStatusDetailPage> {
       return;
     }
 
-    // Show photo modal - untuk saat ini hanya tampilkan pesan
-    // Nanti bisa dikembangkan untuk menampilkan foto base64
-    showDialog(
-      context: context,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          title: const Text('Foto Status'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text('${photos.length} foto tersedia'),
-              const SizedBox(height: 10),
-              // TODO: Implement photo viewer
-              const Text('Photo viewer akan diimplementasikan'),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(),
-              child: const Text('Tutup'),
-            ),
-          ],
-        );
-      },
+    // Convert StatusPhoto to PhotoData
+    List<PhotoData> photoDataList = photos.map((photo) => PhotoData.fromStatusPhoto(photo)).toList();
+
+    // Navigate to ViewOnlyPhotoPreview
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => ViewOnlyPhotoPreview(
+          photos: photoDataList,
+          title: 'Foto Status Pengiriman',
+        ),
+      ),
     );
   }
 

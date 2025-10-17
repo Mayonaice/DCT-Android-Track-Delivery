@@ -447,6 +447,41 @@ class ApiService {
     }
   }
 
+  // Helper function to truncate base64 values
+  String _truncateBase64(dynamic value) {
+    if (value is String && value.length > 100) {
+      // Check if it looks like base64 (contains typical base64 characters)
+      if (RegExp(r'^[A-Za-z0-9+/=]+$').hasMatch(value)) {
+        return '${value.substring(0, 50)}...${value.substring(value.length - 10)}';
+      }
+    }
+    return value.toString();
+  }
+
+  // Helper function to process object and truncate base64 values
+  Map<String, dynamic> _processObjectForDebug(Map<String, dynamic> obj) {
+    Map<String, dynamic> processed = {};
+    obj.forEach((key, value) {
+      if (value is String && value.length > 100 && RegExp(r'^[A-Za-z0-9+/=]+$').hasMatch(value)) {
+        processed[key] = '${value.substring(0, 50)}...${value.substring(value.length - 10)}';
+      } else if (value is Map<String, dynamic>) {
+        processed[key] = _processObjectForDebug(value);
+      } else if (value is List) {
+        processed[key] = value.map((item) {
+          if (item is Map<String, dynamic>) {
+            return _processObjectForDebug(item);
+          } else if (item is String && item.length > 100 && RegExp(r'^[A-Za-z0-9+/=]+$').hasMatch(item)) {
+            return '${item.substring(0, 50)}...${item.substring(item.length - 10)}';
+          }
+          return item;
+        }).toList();
+      } else {
+        processed[key] = value;
+      }
+    });
+    return processed;
+  }
+
   // Add Transaction API
   Future<Map<String, dynamic>> addTransaction(SendGoodsRequest sendGoods, String token) async {
     try {
@@ -461,35 +496,31 @@ class ApiService {
       print('  - Consignees count: ${requestBody['Consignees']?.length ?? 0}');
       print('  - Viewers count: ${requestBody['Viewers']?.length ?? 0}');
       
-      // Debug individual sections
+      // Debug individual sections with base64 truncation
       if (requestBody['Items'] != null && requestBody['Items'].isNotEmpty) {
-        print('🔍 DEBUG: First Item: ${jsonEncode(requestBody['Items'][0])}');
+        final processedItem = _processObjectForDebug(requestBody['Items'][0]);
+        print('🔍 DEBUG: First Item: ${jsonEncode(processedItem)}');
       }
       
       if (requestBody['Consignees'] != null && requestBody['Consignees'].isNotEmpty) {
-        print('🔍 DEBUG: First Consignee: ${jsonEncode(requestBody['Consignees'][0])}');
+        final processedConsignee = _processObjectForDebug(requestBody['Consignees'][0]);
+        print('🔍 DEBUG: First Consignee: ${jsonEncode(processedConsignee)}');
       } else {
         print('🚨 DEBUG: Consignees is null or empty!');
       }
       
       if (requestBody['Viewers'] != null && requestBody['Viewers'].isNotEmpty) {
-        print('🔍 DEBUG: First Viewer: ${jsonEncode(requestBody['Viewers'][0])}');
+        final processedViewer = _processObjectForDebug(requestBody['Viewers'][0]);
+        print('🔍 DEBUG: First Viewer: ${jsonEncode(processedViewer)}');
       } else {
         print('🚨 DEBUG: Viewers is null or empty!');
       }
-      
-      // Print full request body in chunks to avoid truncation
-      final requestBodyJson = jsonEncode(requestBody);
-      print('🔍 DEBUG: Request body length: ${requestBodyJson.length} characters');
-      print('🔍 DEBUG: Full request body:');
-      
-      // Split into chunks of 1000 characters to avoid truncation
-      const chunkSize = 1000;
-      for (int i = 0; i < requestBodyJson.length; i += chunkSize) {
-        final end = (i + chunkSize < requestBodyJson.length) ? i + chunkSize : requestBodyJson.length;
-        final chunk = requestBodyJson.substring(i, end);
-        print('🔍 DEBUG: Body chunk ${(i / chunkSize).floor() + 1}: $chunk');
-      }
+
+      // Process request body for debug output
+      final processedRequestBody = _processObjectForDebug(requestBody);
+      final requestBodyJson = jsonEncode(processedRequestBody);
+      print('🔍 DEBUG: Request body length: ${jsonEncode(requestBody).length} characters (original)');
+      print('🔍 DEBUG: Processed request body: $requestBodyJson');
       
       final response = await http.post(
         url,

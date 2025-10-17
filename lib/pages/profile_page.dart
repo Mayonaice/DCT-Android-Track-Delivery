@@ -9,6 +9,8 @@ import '../services/storage_service.dart';
 import '../models/user_profile_model.dart';
 import 'ubah_profile_page.dart';
 import '../widgets/custommodals.dart';
+import '../widgets/view_only_photo_preview.dart';
+import '../widgets/photo_viewer_widget.dart';
 
 class ProfilePage extends StatefulWidget {
   const ProfilePage({super.key});
@@ -260,7 +262,7 @@ class _ProfilePageState extends State<ProfilePage> {
                 InkWell(
                   onTap: () {
                     Navigator.of(context).pop();
-                    // TODO: Implement view photo functionality if needed
+                    _showProfilePhotoViewer();
                   },
                   child: Container(
                     padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
@@ -685,6 +687,33 @@ class _ProfilePageState extends State<ProfilePage> {
           ],
         );
       },
+    );
+  }
+
+  void _showProfilePhotoViewer() {
+    if (_profileImageBytes == null) {
+      CustomModals.showErrorModal(
+        context,
+        'Tidak ada foto profil untuk ditampilkan',
+      );
+      return;
+    }
+
+    // Convert profile image bytes to PhotoData
+    final photoData = PhotoData(
+      photo64: base64Encode(_profileImageBytes!),
+      filename: 'profile_image.jpg',
+      description: 'Foto Profil',
+    );
+
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => ViewOnlyPhotoPreview(
+          photos: [photoData],
+          title: 'Foto Profil',
+        ),
+      ),
     );
   }
 }

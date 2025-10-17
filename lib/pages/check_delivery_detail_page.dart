@@ -3,6 +3,8 @@ import 'package:flutter/services.dart';
 import '../models/delivery_detail_model.dart';
 import '../services/api_service.dart';
 import '../widgets/custommodals.dart';
+import '../widgets/view_only_photo_preview.dart';
+import '../widgets/photo_viewer_widget.dart';
 
 class CheckDeliveryDetailPage extends StatefulWidget {
   final String deliveryCode;
@@ -411,84 +413,90 @@ class _CheckDeliveryDetailPageState extends State<CheckDeliveryDetailPage> {
     final description = status.description ?? 'Deskripsi tidak tersedia';
     final hasPhoto = status.hasPhoto ?? false;
     
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        // Timeline indicator
-        Column(
-          children: [
-            Container(
-              width: 12,
-              height: 12,
-              decoration: const BoxDecoration(
-                color: Color(0xFF1B8B7A),
-                shape: BoxShape.circle,
-              ),
-            ),
-            if (!isLast)
-              Container(
-                width: 2,
-                height: 40,
-                color: const Color(0xFFE5E7EB),
-              ),
-          ],
-        ),
-        const SizedBox(width: 16),
-        
-        // Status content
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+    return IntrinsicHeight(
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Timeline dot with connecting line
+          Column(
             children: [
-              Text(
-                nameTime,
-                style: const TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                  color: Color(0xFF1B8B7A),
+              Container(
+                width: 16,
+                height: 16,
+                decoration: const BoxDecoration(
+                  color: Color(0xFF1B8B7A), // Green color matching design
+                  shape: BoxShape.circle,
                 ),
               ),
-              const SizedBox(height: 4),
-              Text(
-                description,
-                style: const TextStyle(
-                  fontSize: 14,
-                  color: Color(0xFF6B7280),
-                ),
-              ),
-              if (hasPhoto) ...[
-                const SizedBox(height: 8),
-                GestureDetector(
-                  onTap: () {
-                    HapticFeedback.lightImpact();
-                    // TODO: Show photo viewer
-                    CustomModals.showSuccessModal(
-                      context,
-                      'Fitur lihat foto akan segera tersedia',
-                    );
-                  },
+              // Connecting line yang mengikuti tinggi konten
+              if (!isLast)
+                Expanded(
                   child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF1B8B7A).withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                    child: const Text(
-                      'Lihat Foto',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: Color(0xFF1B8B7A),
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
+                    width: 2,
+                    margin: const EdgeInsets.only(top: 4, bottom: 8),
+                    color: const Color(0xFF1B8B7A), // Green connecting line
                   ),
                 ),
-              ],
-              if (!isLast) const SizedBox(height: 16),
             ],
           ),
-        ),
-      ],
+          const SizedBox(width: 16),
+          
+          // Status content
+          Expanded(
+            child: Container(
+              padding: const EdgeInsets.only(bottom: 24),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    nameTime,
+                    style: const TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: Color(0xFF1B8B7A),
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    description,
+                    style: const TextStyle(
+                      fontSize: 14,
+                      color: Color(0xFF6B7280),
+                    ),
+                  ),
+                  if (hasPhoto) ...[
+                    const SizedBox(height: 8),
+                    Container(
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFD1FAE5), // Light green background
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: InkWell(
+                        onTap: () {
+                          HapticFeedback.lightImpact();
+                          _showPhotoViewer(status.photo);
+                        },
+                        borderRadius: BorderRadius.circular(6),
+                        child: const Padding(
+                          padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                          child: Text(
+                            'Lihat Foto',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: Color(0xFF059669), // Green text
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -514,5 +522,40 @@ class _CheckDeliveryDetailPageState extends State<CheckDeliveryDetailPage> {
     final hour = dateTime.hour.toString().padLeft(2, '0');
     final minute = dateTime.minute.toString().padLeft(2, '0');
     return '$hour:$minute WIB';
+  }
+
+  void _showPhotoViewer(List<String> photoUrls) {
+    if (photoUrls.isEmpty) {
+      CustomModals.showErrorModal(
+        context,
+        'Foto Tidak Tersedia',
+        onOk: () {},
+      );
+      return;
+    }
+
+    // Convert photo URLs to PhotoData
+    // Note: DeliveryDetailStatus.photo contains List<String> which are photo URLs or base64 strings
+    List<PhotoData> photoDataList = photoUrls.asMap().entries.map((entry) {
+      int index = entry.key;
+      String photoData = entry.value;
+      
+      return PhotoData(
+        photo64: photoData,
+        filename: 'foto_${index + 1}.jpg',
+        description: '',
+      );
+    }).toList();
+
+    // Navigate to ViewOnlyPhotoPreview
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => ViewOnlyPhotoPreview(
+          photos: photoDataList,
+          title: 'Foto Status Pengiriman',
+        ),
+      ),
+    );
   }
 }

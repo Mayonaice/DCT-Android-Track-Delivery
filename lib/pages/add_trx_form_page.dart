@@ -8,6 +8,7 @@ import '../models/item_data.dart';
 import '../models/send_goods_model.dart';
 import '../services/api_service.dart';
 import '../services/storage_service.dart';
+import '../services/photo_cache_service.dart';
 
 class AddTrxFormPage extends StatefulWidget {
   final ItemData? itemData;
@@ -36,6 +37,7 @@ class _AddTrxFormPageState extends State<AddTrxFormPage> {
   // Services
   final ApiService _apiService = ApiService();
   final StorageService _storageService = StorageService();
+  final PhotoCacheService _photoCacheService = PhotoCacheService();
   
   // Loading state
   bool _isSubmitting = false;
@@ -268,16 +270,30 @@ class _AddTrxFormPageState extends State<AddTrxFormPage> {
       List<ItemModel> items = [];
       
       for (ItemData itemData in _itemsList) {
-        // Convert image to base64
-        String? photoBase64;
-        if (itemData.selectedImage != null) {
-          photoBase64 = await _convertImageToBase64(itemData.selectedImage);
+        // Convert multiple images to base64
+        List<PhotoModel> photos = [];
+        
+        // Use selectedImages (multiple photos) instead of selectedImage (single photo)
+        for (File imageFile in itemData.selectedImages) {
+          String? photoBase64 = await _convertImageToBase64(imageFile);
+          String originalFilename = imageFile.path.split('/').last;
+          
+          if (photoBase64 != null) {
+            photos.add(PhotoModel(
+              photo64: photoBase64,
+              filename: originalFilename,
+              description: itemData.deskripsiBarang,
+            ));
+          }
         }
         
-        // Get original filename with extension
-        String originalFilename = '';
-        if (itemData.selectedImage != null) {
-          originalFilename = itemData.selectedImage!.path.split('/').last;
+        // If no photos, add empty photo to maintain API compatibility
+        if (photos.isEmpty) {
+          photos.add(PhotoModel(
+            photo64: '',
+            filename: '',
+            description: itemData.deskripsiBarang,
+          ));
         }
         
         items.add(ItemModel(
@@ -285,13 +301,7 @@ class _AddTrxFormPageState extends State<AddTrxFormPage> {
           qty: int.tryParse(itemData.jumlahBarang) ?? 1,
           serialNumber: itemData.serialNumber,
           itemDescription: itemData.deskripsiBarang,
-          photo: [
-            PhotoModel(
-              photo64: photoBase64 ?? '',
-              filename: originalFilename,
-              description: itemData.deskripsiBarang,
-            )
-          ],
+          photo: photos,
           userInput: userEmail,
           timeInput: currentTime,
         ));
@@ -369,6 +379,13 @@ class _AddTrxFormPageState extends State<AddTrxFormPage> {
       if (response['success'] == true) {
         // Success
         _showSuccessDialog('Transaksi berhasil dikirim!');
+        
+        // Clear photo cache for all items after successful post action
+        final photoCacheService = PhotoCacheService();
+        for (ItemData itemData in _itemsList) {
+          await photoCacheService.clearItemPhotos(itemData.itemId);
+          print('🔍 DEBUG: Photo cache cleared for item ${itemData.itemId}');
+        }
         
         // Clear form data
         await _clearItemData();

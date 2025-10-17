@@ -6,8 +6,10 @@ import 'dart:io';
 import 'dart:convert';
 import '../models/item_data.dart';
 import '../widgets/custommodals.dart';
+import '../services/watermark_service.dart';
 import 'add_trx_form_page.dart';
 import 'photo_preview_page.dart';
+import '../services/photo_cache_service.dart';
 
 class AddItemsFormPage extends StatefulWidget {
   final ItemData? existingData;
@@ -25,21 +27,38 @@ class _AddItemsFormPageState extends State<AddItemsFormPage> {
   final TextEditingController _deskripsiBarangController = TextEditingController();
   
   File? _selectedImage;
+  List<File> _selectedImages = []; // New field for multiple photos
+  String _itemId = ''; // Unique identifier for cache management
   final ImagePicker _picker = ImagePicker();
+  final PhotoCacheService _photoCacheService = PhotoCacheService();
 
   @override
   void initState() {
     super.initState();
-    _loadExistingData();
-  }
-
-  void _loadExistingData() {
+    
+    // Generate unique item ID
+    _itemId = DateTime.now().millisecondsSinceEpoch.toString();
+    
     if (widget.existingData != null) {
       _namaBarangController.text = widget.existingData!.namaBarang;
       _jumlahBarangController.text = widget.existingData!.jumlahBarang;
       _serialNumberController.text = widget.existingData!.serialNumber;
       _deskripsiBarangController.text = widget.existingData!.deskripsiBarang;
       _selectedImage = widget.existingData!.selectedImage;
+      _selectedImages = List.from(widget.existingData!.selectedImages);
+      _itemId = widget.existingData!.itemId;
+    }
+    
+    _loadFromCache();
+  }
+
+  Future<void> _loadFromCache() async {
+    final cachedPhotos = await _photoCacheService.getItemPhotos(_itemId);
+    if (cachedPhotos.isNotEmpty) {
+      setState(() {
+        _selectedImages = cachedPhotos;
+        _selectedImage = _selectedImages.first;
+      });
     }
   }
 
@@ -59,6 +78,15 @@ class _AddItemsFormPageState extends State<AddItemsFormPage> {
   }
 
   Future<void> _showImageSourceDialog() async {
+    // Check if there are existing photos in cache
+    final cachedPhotos = await _photoCacheService.getItemPhotos(_itemId);
+    if (cachedPhotos.isNotEmpty) {
+      // If photos exist, go directly to preview page
+      _openPhotoPreview();
+      return;
+    }
+    
+    // If no photos exist, show source selection dialog
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.white,
@@ -167,6 +195,25 @@ class _AddItemsFormPageState extends State<AddItemsFormPage> {
     );
   }
 
+  void _openPhotoPreview() async {
+    final result = await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => PhotoPreviewPage(
+          itemId: _itemId,
+          existingPhotos: _selectedImages.isNotEmpty ? _selectedImages : null,
+        ),
+      ),
+    );
+    
+    if (result != null && result is List<File>) {
+      setState(() {
+        _selectedImages = result;
+        _selectedImage = _selectedImages.isNotEmpty ? _selectedImages.first : null;
+      });
+    }
+  }
+
   Future<void> _pickImage(ImageSource source) async {
     try {
       final XFile? image = await _picker.pickImage(
@@ -192,25 +239,56 @@ class _AddItemsFormPageState extends State<AddItemsFormPage> {
           return;
         }
         
-        // Jika dari kamera, navigasi ke halaman preview
+        final File imageFile = File(image.path);
+        
+        // Add watermark to the image if it's from camera
+        File finalImageFile = imageFile;
         if (source == ImageSource.camera) {
+          print('🔍 DEBUG: Adding watermark to camera image...');
+          finalImageFile = await WatermarkService.addWatermarkToImage(imageFile);
+          print('🔍 DEBUG: Watermark added successfully');
+        }
+        
+        if (source == ImageSource.camera) {
+          // For camera, go to preview page
           final result = await Navigator.push(
             context,
             MaterialPageRoute(
-              builder: (context) => PhotoPreviewPage(imagePath: image.path),
+              builder: (context) => PhotoPreviewPage(
+                initialImagePath: finalImageFile.path,
+                itemId: _itemId,
+                existingPhotos: _selectedImages.isNotEmpty ? _selectedImages : null,
+              ),
             ),
           );
           
-          if (result != null && result is String) {
+          if (result != null && result is List<File>) {
             setState(() {
-              _selectedImage = File(result);
+              _selectedImages = result;
+              _selectedImage = _selectedImages.isNotEmpty ? _selectedImages.first : null;
             });
           }
         } else {
-          // Jika dari galeri, langsung set image
-          setState(() {
-            _selectedImage = File(image.path);
-          });
+          // For gallery, add directly to the list and go to preview
+          List<File> currentImages = List.from(_selectedImages);
+          currentImages.add(finalImageFile);
+          
+          final result = await Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => PhotoPreviewPage(
+                itemId: _itemId,
+                existingPhotos: currentImages,
+              ),
+            ),
+          );
+          
+          if (result != null && result is List<File>) {
+            setState(() {
+              _selectedImages = result;
+              _selectedImage = _selectedImages.isNotEmpty ? _selectedImages.first : null;
+            });
+          }
         }
       }
     } catch (e) {
@@ -262,42 +340,69 @@ class _AddItemsFormPageState extends State<AddItemsFormPage> {
         Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Single circular photo placeholder on the left
+            // Photo placeholder with multiple photo indicator
             Column(
               children: [
                 GestureDetector(
                   onTap: _showImageSourceDialog,
-                  child: Container(
-                    width: 100,
-                    height: 100,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      border: Border.all(
-                        color: const Color(0xFFE5E7EB),
-                        width: 2,
-                      ),
-                      color: _selectedImage != null ? null : const Color(0xFFF9FAFB),
-                    ),
-                    child: _selectedImage != null
-                        ? ClipOval(
-                            child: Image.file(
-                              _selectedImage!,
-                              width: 100,
-                              height: 100,
-                              fit: BoxFit.cover,
-                            ),
-                          )
-                        : const Icon(
-                            Icons.camera_alt_outlined,
-                            color: Color(0xFF9CA3AF),
-                            size: 24,
+                  child: Stack(
+                    children: [
+                      Container(
+                        width: 100,
+                        height: 100,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          border: Border.all(
+                            color: const Color(0xFFE5E7EB),
+                            width: 2,
                           ),
+                          color: _selectedImages.isNotEmpty ? null : const Color(0xFFF9FAFB),
+                        ),
+                        child: _selectedImages.isNotEmpty
+                            ? ClipOval(
+                                child: Image.file(
+                                  _selectedImages.first,
+                                  width: 100,
+                                  height: 100,
+                                  fit: BoxFit.cover,
+                                ),
+                              )
+                            : const Icon(
+                                Icons.camera_alt_outlined,
+                                color: Color(0xFF9CA3AF),
+                                size: 24,
+                              ),
+                      ),
+                      // Photo count indicator
+                      if (_selectedImages.length > 1)
+                        Positioned(
+                          right: 0,
+                          top: 0,
+                          child: Container(
+                            padding: const EdgeInsets.all(4),
+                            decoration: const BoxDecoration(
+                              color: Color(0xFF1B8B7A),
+                              shape: BoxShape.circle,
+                            ),
+                            child: Text(
+                              '${_selectedImages.length}',
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 12,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                        ),
+                    ],
                   ),
                 ),
                 const SizedBox(height: 8),
-                const Text(
-                  'Foto Barang',
-                  style: TextStyle(
+                Text(
+                  _selectedImages.isEmpty 
+                      ? 'Foto Barang' 
+                      : '${_selectedImages.length} Foto',
+                  style: const TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.w500,
                     color: Color(0xFF374151),
@@ -448,6 +553,8 @@ class _AddItemsFormPageState extends State<AddItemsFormPage> {
                     serialNumber: _serialNumberController.text,
                     deskripsiBarang: _deskripsiBarangController.text,
                     selectedImage: _selectedImage,
+                    selectedImages: _selectedImages,
+                    itemId: _itemId,
                   );
                   
                   // Simpan ke cache

@@ -1,12 +1,15 @@
 import 'package:flutter/material.dart';
 import 'dart:convert';
+import 'dart:io';
 import 'package:intl/intl.dart';
+import 'package:path_provider/path_provider.dart';
 import '../models/delivery_transaction_detail_model.dart';
 import '../services/api_service.dart';
 import '../services/storage_service.dart';
 import '../widgets/custommodals.dart';
 import 'item_detail_page.dart';
 import 'delivery_status_detail_page.dart';
+import 'pdf_viewer_page.dart';
 
 class DeliveryDetailPage extends StatefulWidget {
   final String deliveryCode;
@@ -282,12 +285,15 @@ class _DeliveryDetailPageState extends State<DeliveryDetailPage> {
                 color: Color(0xFF6B7280),
               ),
             ),
-            const Text(
-              'Lihat Tanda Terima',
-              style: TextStyle(
-                color: Color(0xFF1B8B7A),
-                fontSize: 14,
-                fontWeight: FontWeight.w600,
+            GestureDetector(
+              onTap: _openPdfViewer,
+              child: const Text(
+                'Lihat Tanda Terima',
+                style: TextStyle(
+                  color: Color(0xFF1B8B7A),
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                ),
               ),
             ),
           ],
@@ -559,5 +565,39 @@ class _DeliveryDetailPageState extends State<DeliveryDetailPage> {
         const SizedBox(height: 20),
       ],
     );
+  }
+
+  Future<void> _openPdfViewer() async {
+    try {
+      // Get the app's documents directory
+      final directory = await getApplicationDocumentsDirectory();
+      final pdfPath = '${directory.path}/receipt_${widget.deliveryCode}.pdf';
+      
+      // Check if PDF file exists
+      if (File(pdfPath).existsSync()) {
+        // Navigate to PDF viewer
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => PdfViewerPage(
+              pdfPath: pdfPath,
+              title: 'Tanda Terima - ${widget.deliveryCode}',
+            ),
+          ),
+        );
+      } else {
+        // Show message that PDF is not available
+        CustomModals.showErrorModal(
+          context,
+          'Tanda terima belum tersedia. PDF akan dibuat setelah proses konfirmasi penerimaan barang.',
+        );
+      }
+    } catch (e) {
+      print('Error opening PDF viewer: $e');
+      CustomModals.showErrorModal(
+        context,
+        'Terjadi kesalahan saat membuka tanda terima: ${e.toString()}',
+      );
+    }
   }
 }
