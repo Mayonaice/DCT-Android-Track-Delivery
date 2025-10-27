@@ -4,6 +4,7 @@ import '../services/api_service.dart';
 import '../services/storage_service.dart';
 import '../models/user_profile_model.dart';
 import '../widgets/custommodals.dart';
+import '../utils/phone_formatter.dart';
 
 class UbahProfilePage extends StatefulWidget {
   const UbahProfilePage({super.key});
@@ -152,10 +153,15 @@ class _UbahProfilePageState extends State<UbahProfilePage> {
       }
 
       // Prepare request body sesuai spesifikasi
+      final rawPhoneNumber = _nomorHpController.text.trim();
+      final convertedPhoneNumber = PhoneFormatter.convertToInternational(rawPhoneNumber);
+      
+      print('🔍 DEBUG: Phone number conversion - Raw: "$rawPhoneNumber", Converted: "$convertedPhoneNumber"');
+      
       final requestBody = {
         "name": _namaController.text.trim(),
         "idNumber": _ktpController.text.trim(),
-        "phoneNumber": _nomorHpController.text.trim(),
+        "phoneNumber": convertedPhoneNumber,
         "userEmail": _emailController.text.trim(),
         "address": _alamatController.text.trim(),
       };

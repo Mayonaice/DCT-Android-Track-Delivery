@@ -1198,6 +1198,64 @@ class ApiService {
     }
   }
 
+  // Delete Notification API
+  Future<bool> deleteNotification(String seqNo, String token) async {
+    try {
+      print('🔍 DEBUG: Deleting notification');
+      print('🔍 DEBUG: SeqNo: $seqNo');
+      print('🔍 DEBUG: Using token: ${token.substring(0, 20)}...');
+      
+      final url = Uri.parse('${Config.baseUrl}Users/Inbox?SeqNo=$seqNo');
+      print('🔍 DEBUG: Delete notification URL: $url');
+      
+      final response = await http.delete(
+        url,
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+      );
+
+      print('🔍 DEBUG: Delete notification response status: ${response.statusCode}');
+      print('🔍 DEBUG: Delete notification response body: ${response.body}');
+
+      if (response.statusCode == 200) {
+        final responseData = jsonDecode(response.body);
+        return responseData['ok'] == true || responseData['success'] == true;
+      } else {
+        print('❌ DEBUG: Failed to delete notification - Status: ${response.statusCode}');
+        return false;
+      }
+    } catch (e) {
+      print('❌ DEBUG: Error deleting notification: $e');
+      return false;
+    }
+  }
+
+  // Delete Multiple Notifications API
+  Future<bool> deleteMultipleNotifications(List<String> seqNos, String token) async {
+    try {
+      print('🔍 DEBUG: Deleting multiple notifications');
+      print('🔍 DEBUG: SeqNos: $seqNos');
+      
+      bool allSuccess = true;
+      
+      for (String seqNo in seqNos) {
+        final success = await deleteNotification(seqNo, token);
+        if (!success) {
+          allSuccess = false;
+          print('❌ DEBUG: Failed to delete notification with SeqNo: $seqNo');
+        }
+      }
+      
+      return allSuccess;
+    } catch (e) {
+      print('❌ DEBUG: Error deleting multiple notifications: $e');
+      return false;
+    }
+  }
+
   // Get Profile Image API
   Future<Map<String, dynamic>> getProfileImage(String token) async {
     try {

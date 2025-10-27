@@ -22,6 +22,10 @@ class _NotificationPageState extends State<NotificationPage> {
   List<NotificationData> _notifications = [];
   bool _isLoading = true;
   String _errorMessage = '';
+  
+  // Selection mode variables
+  bool _isSelectionMode = false;
+  Set<String> _selectedNotifications = {};
 
   @override
   void initState() {
@@ -71,12 +75,20 @@ class _NotificationPageState extends State<NotificationPage> {
 
   Widget _buildNotificationItem(NotificationData notification) {
     final isRead = notification.isRead;
+    final isSelected = _selectedNotifications.contains(notification.seqNo);
     
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 2), // Reduced vertical margin
       decoration: BoxDecoration(
-        color: isRead ? Colors.white : const Color(0xFFE8F5F3), // Light green for unread
+        color: _isSelectionMode && isSelected
+            ? const Color(0xFFE3F2FD) // Light blue for selected items
+            : isRead
+                ? Colors.white
+                : const Color(0xFFE8F5F3), // Light green for unread
         borderRadius: BorderRadius.circular(12),
+        border: _isSelectionMode && isSelected
+            ? Border.all(color: const Color(0xFF1B8B7A), width: 2)
+            : null,
         boxShadow: [
           BoxShadow(
             color: Colors.black.withOpacity(0.05),
@@ -87,43 +99,51 @@ class _NotificationPageState extends State<NotificationPage> {
       ),
       child: ListTile(
         contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4), // Reduced vertical padding
-        leading: Stack(
-          children: [
-            Container(
-              width: 40, // Reduced size
-              height: 40, // Reduced size
-              decoration: BoxDecoration(
-                color: Colors.transparent, // Remove background color
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Image.asset(
-                notification.getIconAsset(),
-                width: 24,
-                height: 24,
-                errorBuilder: (context, error, stackTrace) {
-                  return Icon(
-                    Icons.notifications,
-                    color: const Color(0xFF1B8B7A),
-                    size: 24,
-                  );
+        leading: _isSelectionMode
+            ? Checkbox(
+                value: isSelected,
+                onChanged: (bool? value) {
+                  _toggleNotificationSelection(notification.seqNo);
                 },
-              ),
-            ),
-            if (!isRead)
-              Positioned(
-                top: 0,
-                right: 0,
-                child: Container(
-                  width: 16,
-                  height: 16,
-                  decoration: const BoxDecoration(
-                    color: Colors.red,
-                    shape: BoxShape.circle,
+                activeColor: const Color(0xFF1B8B7A),
+              )
+            : Stack(
+                children: [
+                  Container(
+                    width: 40, // Reduced size
+                    height: 40, // Reduced size
+                    decoration: BoxDecoration(
+                      color: Colors.transparent, // Remove background color
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Image.asset(
+                      notification.getIconAsset(),
+                      width: 24,
+                      height: 24,
+                      errorBuilder: (context, error, stackTrace) {
+                        return Icon(
+                          Icons.notifications,
+                          color: const Color(0xFF1B8B7A),
+                          size: 24,
+                        );
+                      },
+                    ),
                   ),
-                ),
+                  if (!isRead)
+                    Positioned(
+                      top: 0,
+                      right: 0,
+                      child: Container(
+                        width: 16,
+                        height: 16,
+                        decoration: const BoxDecoration(
+                          color: Colors.red,
+                          shape: BoxShape.circle,
+                        ),
+                      ),
+                    ),
+                ],
               ),
-          ],
-        ),
         title: Text(
           notification.title,
           style: TextStyle(
@@ -161,38 +181,43 @@ class _NotificationPageState extends State<NotificationPage> {
         ),
         trailing: null, // Remove the trailing red dot since it's now on the icon
         onTap: () async {
-          // Mark notification as read and navigate to delivery detail
-          try {
-            final token = await _storageService.getToken();
-            if (token != null) {
-              // Mark notification as read
-              await _apiService.markNotificationAsRead(notification.seqNo, token);
-              
-              // Navigate to delivery detail page
-              if (mounted) {
-                final result = await Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => DeliveryDetailPage(
-                      deliveryCode: notification.seqNoDelivery,
-                      token: token,
-                    ),
-                  ),
-                );
+          if (_isSelectionMode) {
+            // In selection mode, toggle selection
+            _toggleNotificationSelection(notification.seqNo);
+          } else {
+            // Normal mode: Mark notification as read and navigate to delivery detail
+            try {
+              final token = await _storageService.getToken();
+              if (token != null) {
+                // Mark notification as read
+                await _apiService.markNotificationAsRead(notification.seqNo, token);
                 
-                // Refresh notifications when returning from delivery detail
-                if (result == null || result == true) {
-                  _loadNotifications();
+                // Navigate to delivery detail page
+                if (mounted) {
+                  final result = await Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => DeliveryDetailPage(
+                        deliveryCode: notification.seqNoDelivery,
+                        token: token,
+                      ),
+                    ),
+                  );
+                  
+                  // Refresh notifications when returning from delivery detail
+                  if (result == null || result == true) {
+                    _loadNotifications();
+                  }
                 }
               }
-            }
-          } catch (e) {
-            print('Error handling notification tap: $e');
-            if (mounted) {
-              CustomModals.showErrorModal(
-                context,
-                'Terjadi kesalahan saat membuka detail pengiriman',
-              );
+            } catch (e) {
+              print('Error handling notification tap: $e');
+              if (mounted) {
+                CustomModals.showErrorModal(
+                  context,
+                  'Terjadi kesalahan saat membuka detail pengiriman',
+                );
+              }
             }
           }
         },
@@ -283,29 +308,50 @@ class _NotificationPageState extends State<NotificationPage> {
         backgroundColor: const Color(0xFFF8FAFF),
         elevation: 0,
         automaticallyImplyLeading: false, // Remove back button since this is a main page
-        title: const Text(
-          'Notifikasi',
-          style: TextStyle(
-            color: Color(0xFF1B8B7A),
-            fontSize: 20,
-            fontWeight: FontWeight.w600,
-          ),
-        ),
+        title: _isSelectionMode
+            ? Text(
+                '${_selectedNotifications.length} dipilih',
+                style: const TextStyle(
+                  color: Color(0xFF1B8B7A),
+                  fontSize: 20,
+                  fontWeight: FontWeight.w600,
+                ),
+              )
+            : const Text(
+                'Notifikasi',
+                style: TextStyle(
+                  color: Color(0xFF1B8B7A),
+                  fontSize: 20,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
         centerTitle: false,
         actions: [
-          IconButton(
-            icon: const Icon(
-              Icons.more_horiz, // Changed to horizontal three dots
-              color: Color(0xFF1B8B7A),
+          if (_isSelectionMode) ...[
+            IconButton(
+              icon: const Icon(
+                Icons.delete,
+                color: Colors.red,
+              ),
+              onPressed: _selectedNotifications.isNotEmpty
+                  ? _deleteSelectedNotifications
+                  : null,
             ),
-            onPressed: () {
-              // Show menu or options
-              CustomModals.showErrorModal(
-                context,
-                'Menu options',
-              );
-            },
-          ),
+            IconButton(
+              icon: const Icon(
+                Icons.close,
+                color: Color(0xFF1B8B7A),
+              ),
+              onPressed: _toggleSelectionMode,
+            ),
+          ] else
+            IconButton(
+              icon: const Icon(
+                Icons.more_horiz, // Changed to horizontal three dots
+                color: Color(0xFF1B8B7A),
+              ),
+              onPressed: _toggleSelectionMode,
+            ),
         ],
         bottom: PreferredSize(
           preferredSize: const Size.fromHeight(1.0),
@@ -348,5 +394,116 @@ class _NotificationPageState extends State<NotificationPage> {
               ),
       bottomNavigationBar: const BottomNavigationWidget(currentIndex: 1),
     );
+  }
+
+  void _toggleSelectionMode() {
+    setState(() {
+      _isSelectionMode = !_isSelectionMode;
+      if (!_isSelectionMode) {
+        _selectedNotifications.clear();
+      }
+    });
+  }
+
+  void _toggleNotificationSelection(String seqNo) {
+    setState(() {
+      if (_selectedNotifications.contains(seqNo)) {
+        _selectedNotifications.remove(seqNo);
+      } else {
+        _selectedNotifications.add(seqNo);
+      }
+    });
+  }
+
+  Future<void> _deleteSelectedNotifications() async {
+    if (_selectedNotifications.isEmpty) return;
+
+    try {
+      // Show confirmation dialog
+      final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('Hapus Notifikasi'),
+          content: Text(
+            'Apakah Anda yakin ingin menghapus ${_selectedNotifications.length} notifikasi yang dipilih?',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: const Text('Batal'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(true),
+              style: TextButton.styleFrom(
+                foregroundColor: Colors.red,
+              ),
+              child: const Text('Hapus'),
+            ),
+          ],
+        ),
+      );
+
+      if (confirmed != true) return;
+
+      // Show loading
+      if (mounted) {
+        CustomModals.showLoadingModal(context, message: 'Menghapus notifikasi...');
+      }
+
+      final token = await _storageService.getToken();
+      if (token == null) {
+        if (mounted) {
+          Navigator.of(context).pop(); // Close loading
+          CustomModals.showErrorModal(
+            context,
+            'Token tidak ditemukan. Silakan login kembali.',
+          );
+        }
+        return;
+      }
+
+      // Delete notifications
+      final success = await _apiService.deleteMultipleNotifications(
+        _selectedNotifications.toList(),
+        token,
+      );
+
+      if (mounted) {
+        Navigator.of(context).pop(); // Close loading
+      }
+
+      if (success) {
+        // Exit selection mode and refresh
+        setState(() {
+          _isSelectionMode = false;
+          _selectedNotifications.clear();
+        });
+        
+        if (mounted) {
+          CustomModals.showSuccessModal(
+            context,
+            'Notifikasi berhasil dihapus',
+          );
+        }
+        
+        // Refresh notifications
+        _loadNotifications();
+      } else {
+        if (mounted) {
+          CustomModals.showErrorModal(
+            context,
+            'Gagal menghapus beberapa notifikasi. Silakan coba lagi.',
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        Navigator.of(context).pop(); // Close loading if still open
+        CustomModals.showErrorModal(
+          context,
+          'Terjadi kesalahan saat menghapus notifikasi: $e',
+        );
+      }
+    }
   }
 }

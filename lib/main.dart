@@ -197,7 +197,7 @@ class _LoginPageState extends State<LoginPage> {
                 controller: _emailController,
                 keyboardType: TextInputType.emailAddress,
                 decoration: InputDecoration(
-                  hintText: 'nandaraditya80@gmail.com',
+                  hintText: 'Login By Email/NoTelp',
                   hintStyle: const TextStyle(
                     color: Color(0xFF9CA3AF),
                     fontSize: 16,
@@ -333,11 +333,14 @@ class _LoginPageState extends State<LoginPage> {
                     Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        const Text(
-                          'Anda Mendapat Kode Pengiriman? ',
-                          style: TextStyle(
-                            fontSize: 14,
-                            color: Color(0xFF6B7280),
+                        Flexible(
+                          child: Text(
+                            'Anda Mendapat Kode Pengiriman? ',
+                            style: TextStyle(
+                              fontSize: 14,
+                              color: Color(0xFF6B7280),
+                            ),
+                            textAlign: TextAlign.center,
                           ),
                         ),
                         GestureDetector(

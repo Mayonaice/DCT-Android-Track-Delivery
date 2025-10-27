@@ -9,6 +9,7 @@ import '../models/send_goods_model.dart';
 import '../services/api_service.dart';
 import '../services/storage_service.dart';
 import '../services/photo_cache_service.dart';
+import '../utils/phone_formatter.dart';
 
 class AddTrxFormPage extends StatefulWidget {
   final ItemData? itemData;
@@ -240,15 +241,7 @@ class _AddTrxFormPageState extends State<AddTrxFormPage> {
       return;
     }
     
-    if (_namaTembusan1Controller.text.trim().isEmpty) {
-      _showErrorDialog('Nama tembusan harus diisi');
-      return;
-    }
-    
-    if (_nohpTembusan1Controller.text.trim().isEmpty) {
-      _showErrorDialog('No HP tembusan harus diisi');
-      return;
-    }
+    // Detail Tembusan is now optional - no validation required
     
     setState(() {
       _isSubmitting = true;
@@ -314,7 +307,7 @@ class _AddTrxFormPageState extends State<AddTrxFormPage> {
       print('🔍 DEBUG: Adding main receiver - Name: "${_namaPenerimaController.text.trim()}", Phone: "${_nohpPenerimaController.text.trim()}"');
       consignees.add(ConsigneeModel(
         name: _namaPenerimaController.text.trim(),
-        phoneNumber: _nohpPenerimaController.text.trim(),
+        phoneNumber: PhoneFormatter.convertToInternational(_nohpPenerimaController.text.trim()),
         userInput: userEmail,
         timeInput: currentTime,
       ));
@@ -327,7 +320,7 @@ class _AddTrxFormPageState extends State<AddTrxFormPage> {
           print('🔍 DEBUG: Adding additional receiver - Name: "$nama", Phone: "$nohp"');
           consignees.add(ConsigneeModel(
             name: nama,
-            phoneNumber: nohp,
+            phoneNumber: PhoneFormatter.convertToInternational(nohp),
             userInput: userEmail,
             timeInput: currentTime,
           ));
@@ -339,14 +332,16 @@ class _AddTrxFormPageState extends State<AddTrxFormPage> {
       // Prepare viewers data (tembusan)
       List<ViewerModel> viewers = [];
       
-      // Add main tembusan
-      print('🔍 DEBUG: Adding main viewer - Name: "${_namaTembusan1Controller.text.trim()}", Phone: "${_nohpTembusan1Controller.text.trim()}"');
-      viewers.add(ViewerModel(
-        name: _namaTembusan1Controller.text.trim(),
-        phoneNumber: _nohpTembusan1Controller.text.trim(),
-        userInput: userEmail,
-        timeInput: currentTime,
-      ));
+      // Add main tembusan only if filled
+      if (_namaTembusan1Controller.text.trim().isNotEmpty && _nohpTembusan1Controller.text.trim().isNotEmpty) {
+        print('🔍 DEBUG: Adding main viewer - Name: "${_namaTembusan1Controller.text.trim()}", Phone: "${_nohpTembusan1Controller.text.trim()}"');
+        viewers.add(ViewerModel(
+          name: _namaTembusan1Controller.text.trim(),
+          phoneNumber: PhoneFormatter.convertToInternational(_nohpTembusan1Controller.text.trim()),
+          userInput: userEmail,
+          timeInput: currentTime,
+        ));
+      }
       
       // Add additional tembusan
       for (var tembusan in _additionalTembusan) {
@@ -356,7 +351,7 @@ class _AddTrxFormPageState extends State<AddTrxFormPage> {
           print('🔍 DEBUG: Adding additional viewer - Name: "$nama", Phone: "$nohp"');
           viewers.add(ViewerModel(
             name: nama,
-            phoneNumber: nohp,
+            phoneNumber: PhoneFormatter.convertToInternational(nohp),
             userInput: userEmail,
             timeInput: currentTime,
           ));

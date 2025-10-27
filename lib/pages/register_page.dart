@@ -4,6 +4,7 @@ import 'otp_verification_page.dart';
 import 'dct_web_register_page.dart';
 import '../services/api_service.dart';
 import '../widgets/custommodals.dart';
+import '../utils/phone_formatter.dart';
 
 class RegisterPage extends StatefulWidget {
   const RegisterPage({Key? key}) : super(key: key);
@@ -137,10 +138,12 @@ class _RegisterPageState extends State<RegisterPage> {
     _savedName = _namaController.text.trim();
     _savedIdNumber = _ktpController.text.trim();
     _savedEmail = _emailController.text.trim();
-    _savedPhoneNumber = _phoneController.text.trim();
+    // Convert phone number from 0 to 62 format before saving
+    String rawPhoneNumber = _phoneController.text.trim();
+    _savedPhoneNumber = PhoneFormatter.convertToInternational(rawPhoneNumber);
     _savedPassword = _passwordController.text;
     
-    print('📝 DEBUG: Saved data - Name: $_savedName, Email: $_savedEmail, Phone: $_savedPhoneNumber');
+    print('📝 DEBUG: Saved data - Name: $_savedName, Email: $_savedEmail, Phone: $_savedPhoneNumber (converted from: $rawPhoneNumber)');
   }
 
   void _handleRegister() async {

@@ -344,27 +344,32 @@ class _HomePageState extends State<HomePage> {
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'Hi, $userName 👋',
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 20,
-                                fontWeight: FontWeight.w600,
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Hi, $userName 👋',
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 20,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                                overflow: TextOverflow.ellipsis,
+                                maxLines: 1,
                               ),
-                            ),
-                            const SizedBox(height: 4),
-                            const Text(
-                              'Selamat Pagi!',
-                              style: TextStyle(
-                                color: Colors.white70,
-                                fontSize: 14,
+                              const SizedBox(height: 4),
+                              const Text(
+                                'Selamat Pagi!',
+                                style: TextStyle(
+                                  color: Colors.white70,
+                                  fontSize: 14,
+                                ),
                               ),
-                            ),
-                          ],
+                            ],
+                          ),
                         ),
+                        const SizedBox(width: 12),
                         // Profile Picture
                         Container(
                           width: 50,
@@ -461,37 +466,41 @@ class _HomePageState extends State<HomePage> {
                       // Filter Buttons
                       Row(
                         children: [
-                          _buildFilterButton(
-                            _selectedStatusFilter.label,
-                            true,
-                            () => showStatusFilter(
-                              context,
-                              _selectedStatusFilter,
-                              (option) {
-                                setState(() {
-                                  _selectedStatusFilter = option;
-                                });
-                                _loadTransactions();
-                              },
+                          Flexible(
+                            child: _buildFilterButton(
+                              _selectedStatusFilter.label,
+                              true,
+                              () => showStatusFilter(
+                                context,
+                                _selectedStatusFilter,
+                                (option) {
+                                  setState(() {
+                                    _selectedStatusFilter = option;
+                                  });
+                                  _loadTransactions();
+                                },
+                              ),
                             ),
                           ),
                           const SizedBox(width: 12),
-                          _buildFilterButton(
-                            _selectedDateFilter.label,
-                            false,
-                            () => showDateFilter(
-                              context,
-                              _selectedDateFilter,
-                              _customStartDate,
-                              _customEndDate,
-                              (option, startDate, endDate) {
-                                setState(() {
-                                  _selectedDateFilter = option;
-                                  _customStartDate = startDate;
-                                  _customEndDate = endDate;
-                                });
-                                _loadTransactions();
-                              },
+                          Flexible(
+                            child: _buildFilterButton(
+                              _selectedDateFilter.label,
+                              false,
+                              () => showDateFilter(
+                                context,
+                                _selectedDateFilter,
+                                _customStartDate,
+                                _customEndDate,
+                                (option, startDate, endDate) {
+                                  setState(() {
+                                    _selectedDateFilter = option;
+                                    _customStartDate = startDate;
+                                    _customEndDate = endDate;
+                                  });
+                                  _loadTransactions();
+                                },
+                              ),
                             ),
                           ),
                         ],
@@ -575,12 +584,16 @@ class _HomePageState extends State<HomePage> {
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text(
-              text,
-              style: TextStyle(
-                color: isSelected ? Colors.white : const Color(0xFF1B8B7A),
-                fontSize: 12,
-                fontWeight: FontWeight.w500,
+            Flexible(
+              child: Text(
+                text,
+                style: TextStyle(
+                  color: isSelected ? Colors.white : const Color(0xFF1B8B7A),
+                  fontSize: 12,
+                  fontWeight: FontWeight.w500,
+                ),
+                overflow: TextOverflow.ellipsis,
+                maxLines: 1,
               ),
             ),
             const SizedBox(width: 4),

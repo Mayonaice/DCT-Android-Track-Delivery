@@ -223,11 +223,14 @@ class _CheckDeliveryPageState extends State<CheckDeliveryPage> {
                     Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        const Text(
-                          'Anda Mendapat Kode Pengiriman? ',
-                          style: TextStyle(
-                            fontSize: 14,
-                            color: Color(0xFF6B7280),
+                        Flexible(
+                          child: Text(
+                            'Anda Mendapat Kode Pengiriman? ',
+                            style: TextStyle(
+                              fontSize: 14,
+                              color: Color(0xFF6B7280),
+                            ),
+                            textAlign: TextAlign.center,
                           ),
                         ),
                         GestureDetector(
