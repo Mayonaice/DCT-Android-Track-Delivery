@@ -5,7 +5,8 @@ import 'dart:typed_data';
 import '../models/delivery_transaction_detail_model.dart';
 import '../services/api_service.dart';
 import '../services/storage_service.dart';
-import 'image_preview_page.dart';
+import '../widgets/view_only_photo_preview.dart';
+import '../widgets/photo_viewer_widget.dart';
 
 class ItemDetailPage extends StatefulWidget {
   final String deliveryCode;
@@ -275,19 +276,19 @@ class _ItemDetailPageState extends State<ItemDetailPage> {
                 GestureDetector(
                   onTap: () {
                     if (_itemData!.photo.isNotEmpty) {
-                      final photo = _itemData!.photo[0];
-                      final imageData = _convertBase64ToImage(photo.photo64);
-                      if (imageData != null) {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => ImagePreviewPage(
-                              imageData: imageData,
-                              filename: 'photo_1${_getFileExtensionFromBase64(photo.photo64)}',
-                            ),
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => ViewOnlyPhotoPreview(
+                            photos: _itemData!.photo.map((photo) => PhotoData(
+                              photo64: photo.photo64,
+                              filename: 'Item Photo',
+                              description: '',
+                            )).toList(),
+                            title: 'Item Photos',
                           ),
-                        );
-                      }
+                        ),
+                      );
                     }
                   },
                   child: Container(

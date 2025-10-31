@@ -5,7 +5,8 @@ import 'dart:typed_data';
 import '../models/delivery_transaction_detail_model.dart';
 import '../services/api_service.dart';
 import '../services/storage_service.dart';
-import 'image_preview_page.dart';
+import '../widgets/view_only_photo_preview.dart';
+import '../widgets/photo_viewer_widget.dart';
 
 class TaTpItemDetailPage extends StatefulWidget {
   final String deliveryCode;
@@ -260,12 +261,21 @@ class _TaTpItemDetailPageState extends State<TaTpItemDetailPage> {
                 GestureDetector(
                   onTap: () {
                     if (_itemData!.photo.isNotEmpty) {
+                      // Convert all photos to PhotoData format
+                      List<PhotoData> photoDataList = _itemData!.photo.map((photo) {
+                        return PhotoData(
+                          photo64: photo.photo64,
+                          filename: 'Item Photo',
+                          description: '',
+                        );
+                      }).toList();
+
                       Navigator.push(
                         context,
                         MaterialPageRoute(
-                          builder: (context) => ImagePreviewPage(
-                            imageData: _convertBase64ToImage(_itemData!.photo[0].photo64)!,
-                            filename: 'Item Photo',
+                          builder: (context) => ViewOnlyPhotoPreview(
+                            photos: photoDataList,
+                            title: 'Foto Barang',
                           ),
                         ),
                       );

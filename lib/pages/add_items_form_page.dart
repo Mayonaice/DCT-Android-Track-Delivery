@@ -215,6 +215,7 @@ class _AddItemsFormPageState extends State<AddItemsFormPage> {
   }
 
   Future<void> _pickImage(ImageSource source) async {
+    print('🔍 DEBUG: _pickImage called with source: $source');
     try {
       final XFile? image = await _picker.pickImage(
         source: source,
@@ -223,7 +224,11 @@ class _AddItemsFormPageState extends State<AddItemsFormPage> {
         imageQuality: 85,
       );
       
+      print('🔍 DEBUG: ImagePicker result: ${image?.path ?? 'null'}');
+      
       if (image != null) {
+        print('🔍 DEBUG: Image picked successfully: ${image.path}');
+        
         // Validasi format gambar
         final String fileName = image.path.toLowerCase();
         final List<String> allowedExtensions = ['.png', '.jpg', '.jpeg'];
@@ -231,6 +236,7 @@ class _AddItemsFormPageState extends State<AddItemsFormPage> {
         bool isValidFormat = allowedExtensions.any((ext) => fileName.endsWith(ext));
         
         if (!isValidFormat) {
+          print('🚨 DEBUG: Invalid image format: $fileName');
           // Tampilkan pesan error menggunakan CustomModals
           CustomModals.showErrorModal(
             context, 
@@ -239,17 +245,55 @@ class _AddItemsFormPageState extends State<AddItemsFormPage> {
           return;
         }
         
+        print('🔍 DEBUG: Image format validated successfully');
         final File imageFile = File(image.path);
+        print('🔍 DEBUG: Created File object: ${imageFile.path}');
+        print('🔍 DEBUG: File exists: ${await imageFile.exists()}');
+        print('🔍 DEBUG: File size: ${await imageFile.length()} bytes');
         
         // Add watermark to the image if it's from camera
         File finalImageFile = imageFile;
         if (source == ImageSource.camera) {
           print('🔍 DEBUG: Adding watermark to camera image...');
-          finalImageFile = await WatermarkService.addWatermarkToImage(imageFile);
-          print('🔍 DEBUG: Watermark added successfully');
+          
+          // Show loading dialog
+          showDialog(
+            context: context,
+            barrierDismissible: false,
+            builder: (BuildContext context) {
+              return const AlertDialog(
+                content: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    CircularProgressIndicator(),
+                    SizedBox(width: 20),
+                    Text('Memproses foto...'),
+                  ],
+                ),
+              );
+            },
+          );
+          
+          try {
+            finalImageFile = await WatermarkService.addWatermarkToImage(imageFile);
+            print('🔍 DEBUG: Watermark added successfully');
+            print('🔍 DEBUG: Final image file: ${finalImageFile.path}');
+            print('🔍 DEBUG: Final file exists: ${await finalImageFile.exists()}');
+            print('🔍 DEBUG: Final file size: ${await finalImageFile.length()} bytes');
+          } catch (e) {
+            print('🚨 DEBUG: Watermark failed: $e');
+            print('🚨 DEBUG: Using original file instead');
+            finalImageFile = imageFile;
+          } finally {
+            // Hide loading dialog
+            if (mounted) {
+              Navigator.of(context).pop();
+            }
+          }
         }
         
         if (source == ImageSource.camera) {
+          print('🔍 DEBUG: Navigating to PhotoPreviewPage for camera image...');
           // For camera, go to preview page
           final result = await Navigator.push(
             context,
@@ -262,13 +306,19 @@ class _AddItemsFormPageState extends State<AddItemsFormPage> {
             ),
           );
           
+          print('🔍 DEBUG: PhotoPreviewPage result: ${result?.runtimeType}');
           if (result != null && result is List<File>) {
+            print('🔍 DEBUG: Received ${result.length} photos from preview');
             setState(() {
               _selectedImages = result;
               _selectedImage = _selectedImages.isNotEmpty ? _selectedImages.first : null;
             });
+            print('🔍 DEBUG: Updated _selectedImages count: ${_selectedImages.length}');
+          } else {
+            print('🚨 DEBUG: No photos returned from preview or invalid result type');
           }
         } else {
+          print('🔍 DEBUG: Navigating to PhotoPreviewPage for gallery image...');
           // For gallery, add directly to the list and go to preview
           List<File> currentImages = List.from(_selectedImages);
           currentImages.add(finalImageFile);
@@ -283,15 +333,24 @@ class _AddItemsFormPageState extends State<AddItemsFormPage> {
             ),
           );
           
+          print('🔍 DEBUG: PhotoPreviewPage result: ${result?.runtimeType}');
           if (result != null && result is List<File>) {
+            print('🔍 DEBUG: Received ${result.length} photos from preview');
             setState(() {
               _selectedImages = result;
               _selectedImage = _selectedImages.isNotEmpty ? _selectedImages.first : null;
             });
+            print('🔍 DEBUG: Updated _selectedImages count: ${_selectedImages.length}');
+          } else {
+            print('🚨 DEBUG: No photos returned from preview or invalid result type');
           }
         }
+      } else {
+        print('🚨 DEBUG: No image selected from picker');
       }
     } catch (e) {
+      print('🚨 DEBUG: Error in _pickImage: $e');
+      print('🚨 DEBUG: Stack trace: ${StackTrace.current}');
       CustomModals.showErrorModal(
         context,
         'Error picking image: $e',

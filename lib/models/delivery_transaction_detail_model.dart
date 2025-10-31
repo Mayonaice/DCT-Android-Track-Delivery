@@ -72,6 +72,7 @@ class DeliveryItem {
   final int qty;
   final String serialNumber;
   final String itemDescription;
+  final String? deliveryNo;
   final List<DeliveryPhoto> photo;
 
   DeliveryItem({
@@ -79,6 +80,7 @@ class DeliveryItem {
     required this.qty,
     required this.serialNumber,
     required this.itemDescription,
+    this.deliveryNo,
     required this.photo,
   });
 
@@ -88,6 +90,7 @@ class DeliveryItem {
       qty: json['qty'] ?? 0,
       serialNumber: json['serialNumber'] ?? '',
       itemDescription: json['itemDescription'] ?? '',
+      deliveryNo: json['deliveryNo'],
       photo: (json['photo'] as List<dynamic>?)
           ?.map((item) => DeliveryPhoto.fromJson(item))
           .toList() ?? [],

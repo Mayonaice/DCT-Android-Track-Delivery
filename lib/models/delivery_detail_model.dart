@@ -100,7 +100,7 @@ class DeliveryStatusInfo {
       case '4':
         return 'Diterima Target';
       case '5':
-        return 'Dibatalkan';
+        return 'Dikonfirmasi Penerima';
       default:
         return 'Status Tidak Diketahui';
     }
@@ -157,7 +157,7 @@ class DeliveryDetailStatus {
   final String? deliveryCode;
   final String? nameTime;
   final String? description;
-  final List<String> photo;
+  final List<DetailStatusPhoto> photo;
   final DateTime? timeInput;
 
   DeliveryDetailStatus({
@@ -174,7 +174,7 @@ class DeliveryDetailStatus {
       nameTime: json['nameTime']?.toString(),
       description: json['description']?.toString(),
       photo: (json['photo'] as List<dynamic>?)
-          ?.map((p) => p.toString())
+          ?.map((p) => DetailStatusPhoto.fromJson(p))
           .toList() ?? [],
       timeInput: json['timeInput'] != null 
           ? DateTime.tryParse(json['timeInput'].toString())
@@ -187,7 +187,7 @@ class DeliveryDetailStatus {
       'deliveryCode': deliveryCode,
       'nameTime': nameTime,
       'description': description,
-      'photo': photo,
+      'photo': photo.map((p) => p.toJson()).toList(),
       'timeInput': timeInput?.toIso8601String(),
     };
   }
@@ -395,6 +395,34 @@ class DeliveryStatusTrack {
       'timestamp': timestamp.toIso8601String(),
       'isCompleted': isCompleted,
       'hasPhoto': hasPhoto,
+    };
+  }
+}
+
+class DetailStatusPhoto {
+  final String photo64;
+  final String filename;
+  final String? description;
+
+  DetailStatusPhoto({
+    required this.photo64,
+    required this.filename,
+    this.description,
+  });
+
+  factory DetailStatusPhoto.fromJson(Map<String, dynamic> json) {
+    return DetailStatusPhoto(
+      photo64: json['photo64'] ?? '',
+      filename: json['filename'] ?? '',
+      description: json['description'],
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'photo64': photo64,
+      'filename': filename,
+      'description': description,
     };
   }
 }

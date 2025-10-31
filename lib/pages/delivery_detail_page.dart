@@ -6,6 +6,7 @@ import 'package:path_provider/path_provider.dart';
 import '../models/delivery_transaction_detail_model.dart';
 import '../services/api_service.dart';
 import '../services/storage_service.dart';
+import '../services/pdf_service.dart';
 import '../widgets/custommodals.dart';
 import 'item_detail_page.dart';
 import 'delivery_status_detail_page.dart';
@@ -569,19 +570,32 @@ class _DeliveryDetailPageState extends State<DeliveryDetailPage> {
 
   Future<void> _openPdfViewer() async {
     try {
-      // Get the app's documents directory
-      final directory = await getApplicationDocumentsDirectory();
-      final pdfPath = '${directory.path}/receipt_${widget.deliveryCode}.pdf';
+      // Show loading indicator
+      CustomModals.showLoadingModal(context, message: 'Memuat tanda terima...');
       
-      // Check if PDF file exists
-      if (File(pdfPath).existsSync()) {
+      // Get deliveryNo from first item if available, fallback to deliveryCode
+      String codeForPdf = widget.deliveryCode; // fallback
+      if (_deliveryData?.items.isNotEmpty == true && _deliveryData!.items.first.deliveryNo != null) {
+        codeForPdf = _deliveryData!.items.first.deliveryNo!;
+        print('🔍 DEBUG: Using deliveryNo from first item for PDF: $codeForPdf');
+      } else {
+        print('🔍 DEBUG: No deliveryNo found in items, using deliveryCode for PDF: $codeForPdf');
+      }
+      
+      // Try to get PDF path (local first, then from endpoint)
+      final pdfPath = await PdfService.getPdfPathWithFallback(codeForPdf);
+      
+      // Hide loading indicator
+      CustomModals.hideLoadingModal(context);
+      
+      if (pdfPath != null && File(pdfPath).existsSync()) {
         // Navigate to PDF viewer
         Navigator.push(
           context,
           MaterialPageRoute(
             builder: (context) => PdfViewerPage(
               pdfPath: pdfPath,
-              title: 'Tanda Terima - ${widget.deliveryCode}',
+              title: 'Tanda Terima - $codeForPdf',
             ),
           ),
         );
@@ -593,6 +607,9 @@ class _DeliveryDetailPageState extends State<DeliveryDetailPage> {
         );
       }
     } catch (e) {
+      // Hide loading indicator if still showing
+      CustomModals.hideLoadingModal(context);
+      
       print('Error opening PDF viewer: $e');
       CustomModals.showErrorModal(
         context,

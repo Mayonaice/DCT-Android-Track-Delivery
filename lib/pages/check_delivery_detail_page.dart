@@ -198,6 +198,7 @@ class _CheckDeliveryDetailPageState extends State<CheckDeliveryDetailPage> {
               color: Color(0xFF6B7280),
             ),
           ),
+          const SizedBox(height: 16),
         ],
       ),
     );
@@ -524,8 +525,8 @@ class _CheckDeliveryDetailPageState extends State<CheckDeliveryDetailPage> {
     return '$hour:$minute WIB';
   }
 
-  void _showPhotoViewer(List<String> photoUrls) {
-    if (photoUrls.isEmpty) {
+  void _showPhotoViewer(List<DetailStatusPhoto> photos) {
+    if (photos.isEmpty) {
       CustomModals.showErrorModal(
         context,
         'Foto Tidak Tersedia',
@@ -534,16 +535,12 @@ class _CheckDeliveryDetailPageState extends State<CheckDeliveryDetailPage> {
       return;
     }
 
-    // Convert photo URLs to PhotoData
-    // Note: DeliveryDetailStatus.photo contains List<String> which are photo URLs or base64 strings
-    List<PhotoData> photoDataList = photoUrls.asMap().entries.map((entry) {
-      int index = entry.key;
-      String photoData = entry.value;
-      
+    // Convert DetailStatusPhoto to PhotoData
+    List<PhotoData> photoDataList = photos.map((photo) {
       return PhotoData(
-        photo64: photoData,
-        filename: 'foto_${index + 1}.jpg',
-        description: '',
+        photo64: photo.photo64,
+        filename: photo.filename,
+        description: photo.description ?? '',
       );
     }).toList();
 

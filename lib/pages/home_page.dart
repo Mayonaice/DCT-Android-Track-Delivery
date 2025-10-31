@@ -527,7 +527,19 @@ class _HomePageState extends State<HomePage> {
                                     itemCount: _getDisplayTransactions().length,
                                     itemBuilder: (context, index) {
                                       final transaction = _getDisplayTransactions()[index];
-                                      return _buildStatusItem(transaction);
+                                      return GestureDetector(
+                                        onTap: () {
+                                          // Navigate to delivery detail page
+                                          Navigator.pushNamed(
+                                            context,
+                                            '/delivery-detail',
+                                            arguments: {
+                                              'deliveryCode': transaction.transactionCode,
+                                            },
+                                          );
+                                        },
+                                        child: _buildStatusItem(transaction),
+                                      );
                                     },
                                   ),
                        ),
@@ -725,6 +737,7 @@ class _HomePageState extends State<HomePage> {
                   color: Color(0xFF9CA3AF),
                 ),
               ),
+              const SizedBox(height: 8),
             ],
           ),
         ],

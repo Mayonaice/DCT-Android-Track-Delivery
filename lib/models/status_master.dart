@@ -2,6 +2,12 @@ import 'package:flutter/material.dart';
 
 class StatusMaster {
   static const Map<int, StatusData> statusMap = {
+    1: StatusData(
+      id: 1,
+      name: 'New',
+      iconPath: 'assets/images/icon-status2(submitted).png',
+      color: Color(0xFF6B7280), // Abu-abu
+    ),
     2: StatusData(
       id: 2,
       name: 'Submitted',
@@ -75,6 +81,7 @@ class StatusFilterOption {
 
   static const List<StatusFilterOption> options = [
     StatusFilterOption(label: 'Semua Status Pengiriman', statusId: null),
+    StatusFilterOption(label: 'New', statusId: 1),
     StatusFilterOption(label: 'Submitted', statusId: 2),
     StatusFilterOption(label: 'Diterima Perantara', statusId: 3),
     StatusFilterOption(label: 'Diterima Target', statusId: 4),

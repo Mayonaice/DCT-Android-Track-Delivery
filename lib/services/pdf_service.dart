@@ -1,11 +1,14 @@
 import 'dart:io';
 import 'dart:typed_data';
+import 'dart:convert';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:path_provider/path_provider.dart';
 import 'package:intl/intl.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import '../models/delivery_transaction_detail_model.dart';
+import '../services/api_service.dart';
+import '../services/storage_service.dart';
 
 class PdfService {
   static const double _pageWidth = 595.28; // A4 width in points
@@ -304,5 +307,104 @@ class PdfService {
     } catch (e) {
       return false;
     }
+  }
+
+  /// Download PDF from receivedocuments endpoint and save to local storage
+  static Future<String?> downloadPdfFromEndpoint(String deliveryCode) async {
+    try {
+      final apiService = ApiService();
+      final storageService = StorageService();
+      final token = await storageService.getToken();
+      
+      if (token == null) {
+        throw Exception('Token tidak tersedia');
+      }
+
+      print('🔍 DEBUG: Downloading PDF from endpoint for delivery: $deliveryCode');
+      
+      // Call the receivedocuments endpoint
+      final response = await apiService.get(
+        'Transaction2/Trx/ReceiveDocuments',
+        token: token,
+        queryParams: {
+          'DeliveryCode': deliveryCode,
+        },
+      );
+
+      print('🔍 DEBUG: ReceiveDocuments response: $response');
+
+      // Check if response has the expected structure
+      // Response structure: {"success": true, "data": {"ok": true, "data": [...]}}
+      if (response['success'] == true) {
+        final responseData = response['data'];
+        if (responseData != null && responseData['ok'] == true) {
+          final documents = responseData['data'] as List?;
+          print('🔍 DEBUG: Documents found: ${documents?.length ?? 0}');
+          
+          if (documents != null && documents.isNotEmpty) {
+            // Get the first document (PDF)
+            final document = documents.first;
+            print('🔍 DEBUG: First document keys: ${document.keys.toList()}');
+            
+            final photo64 = document['photo64'] as String?;
+            final filename = document['filename'] as String?;
+            
+            print('🔍 DEBUG: photo64 length: ${photo64?.length ?? 0}');
+            print('🔍 DEBUG: filename: $filename');
+          
+          if (photo64 != null && photo64.isNotEmpty) {
+            // Decode base64 to bytes
+            final pdfBytes = base64Decode(photo64);
+            
+            // Get app documents directory
+            final directory = await getApplicationDocumentsDirectory();
+            
+            // Create filename with timestamp if not provided
+            final pdfFilename = filename ?? 'receipt_${deliveryCode}_${DateTime.now().millisecondsSinceEpoch}.pdf';
+            final pdfPath = '${directory.path}/$pdfFilename';
+            
+            // Save PDF to local storage
+            final pdfFile = File(pdfPath);
+            await pdfFile.writeAsBytes(pdfBytes);
+            
+            print('🔍 DEBUG: PDF saved to: $pdfPath');
+            return pdfPath;
+          } else {
+            print('🚨 DEBUG: No PDF data found in response');
+            return null;
+          }
+        } else {
+          print('🚨 DEBUG: No documents found in response');
+          return null;
+        }
+      } else {
+        print('🚨 DEBUG: Inner response not successful: ${responseData?['message']}');
+        return null;
+      }
+    } else {
+      print('🚨 DEBUG: API response not successful: ${response['message']}');
+      return null;
+    }
+    } catch (e) {
+      print('🚨 DEBUG: Error downloading PDF from endpoint: $e');
+      return null;
+    }
+  }
+
+  /// Get PDF path - try local first, then download from endpoint
+  static Future<String?> getPdfPathWithFallback(String deliveryCode) async {
+    try {
+      // First, try to get local PDF
+      final localPath = await getPdfFilePath(deliveryCode);
+      if (File(localPath).existsSync()) {
+        print('🔍 DEBUG: Found local PDF: $localPath');
+        return localPath;
+      }
+    } catch (e) {
+      print('🔍 DEBUG: No local PDF found, trying endpoint...');
+    }
+    
+    // If local PDF not found, try to download from endpoint
+    return await downloadPdfFromEndpoint(deliveryCode);
   }
 }

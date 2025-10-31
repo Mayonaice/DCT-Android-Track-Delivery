@@ -18,6 +18,7 @@ import 'photo_preview_page.dart';
 
 class TaTpDeliveryPage extends StatefulWidget {
   final String deliveryCode;
+  final String? deliveryNo; // Add deliveryNo parameter
   final String token;
   final UserRole userRole;
   final String status; // Status dari response login by code
@@ -25,6 +26,7 @@ class TaTpDeliveryPage extends StatefulWidget {
   const TaTpDeliveryPage({
     Key? key,
     required this.deliveryCode,
+    this.deliveryNo, // Make it optional for backward compatibility
     required this.token,
     required this.userRole,
     required this.status,
@@ -436,6 +438,25 @@ class _TaTpDeliveryPageState extends State<TaTpDeliveryPage> {
           print('🔍 DEBUG: Generating PDF first before calling ReceiveDocuments...');
           
           try {
+            // Debug: Check delivery data and items
+            print('🔍 DEBUG: _deliveryData is null: ${_deliveryData == null}');
+            print('🔍 DEBUG: _deliveryData.items length: ${_deliveryData?.items.length ?? 0}');
+            if (_deliveryData?.items.isNotEmpty == true) {
+              print('🔍 DEBUG: First item deliveryNo: ${_deliveryData!.items.first.deliveryNo}');
+              print('🔍 DEBUG: First item itemName: ${_deliveryData!.items.first.itemName}');
+            }
+            
+            // Get deliveryNo from first item if available
+            String deliveryCodeForReceiveDocuments = widget.deliveryCode; // fallback
+            if (_deliveryData?.items.isNotEmpty == true && _deliveryData!.items.first.deliveryNo != null) {
+              deliveryCodeForReceiveDocuments = _deliveryData!.items.first.deliveryNo!;
+              print('🔍 DEBUG: Using deliveryNo from first item: $deliveryCodeForReceiveDocuments');
+            } else {
+              print('🔍 DEBUG: No deliveryNo found in items, using deliveryCode: $deliveryCodeForReceiveDocuments');
+            }
+            
+            print('🔍 DEBUG: Final deliveryCodeForReceiveDocuments: $deliveryCodeForReceiveDocuments');
+            
             // Generate PDF first
             final pdfFile = await PdfService.generateReceiptPdf(
               deliveryData: _deliveryData!,
@@ -455,20 +476,21 @@ class _TaTpDeliveryPageState extends State<TaTpDeliveryPage> {
               "Photo": [
                 {
                   "Photo64": pdfBase64,
-                  "Filename": "receipt_${widget.deliveryCode}.pdf",
-                  "Description": "Tanda terima barang untuk delivery ${widget.deliveryCode}"
+                  "Filename": "receipt_$deliveryCodeForReceiveDocuments.pdf",
+                  "Description": "Tanda terima barang untuk delivery $deliveryCodeForReceiveDocuments"
                 }
               ]
             };
             
             print('🔍 DEBUG: Calling ReceiveDocuments endpoint with PDF...');
+            print('🔍 DEBUG: GET URL will be: Transaction2/Trx/ReceiveDocuments?DeliveryCode=$deliveryCodeForReceiveDocuments');
             
             final receiveDocumentsResponse = await _apiService.post(
               'Transaction2/Trx/ReceiveDocuments',
               receiveDocumentsBody,
               token: token,
               queryParams: {
-                'DeliveryCode': widget.deliveryCode,
+                'DeliveryCode': deliveryCodeForReceiveDocuments, // Use deliveryNo from first item if available
               },
             );
             

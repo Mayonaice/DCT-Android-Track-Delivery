@@ -148,19 +148,7 @@ class _PhotoPreviewPageState extends State<PhotoPreviewPage> {
                     source: ImageSource.camera,
                     imageQuality: 80,
                   );
-                  
-                  if (photo != null) {
-                    // Add watermark to camera image
-                    print('🔍 DEBUG: Adding watermark to camera image...');
-                    final File originalFile = File(photo.path);
-                    final File watermarkedFile = await WatermarkService.addWatermarkToImage(originalFile);
-                    print('🔍 DEBUG: Watermark added successfully');
-                    
-                    // Return the watermarked image
-                    Navigator.pop(context, XFile(watermarkedFile.path));
-                  } else {
-                    Navigator.pop(context, null);
-                  }
+                  Navigator.pop(context, photo);
                 },
               ),
               ListTile(
@@ -181,10 +169,18 @@ class _PhotoPreviewPageState extends State<PhotoPreviewPage> {
     );
 
     if (result != null) {
-      final newPhoto = File(result.path);
+      // Process photo in background with proper async handling
+      _processPhotoAsync(result);
+    }
+  }
+
+  Future<void> _processPhotoAsync(XFile result) async {
+    try {
+      final originalFile = File(result.path);
       
       // Validate file
-      if (!_photoCacheService.isValidImageFile(newPhoto)) {
+      if (!_photoCacheService.isValidImageFile(originalFile)) {
+        Navigator.of(context).pop(); // Close loading dialog
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('Format file tidak didukung. Gunakan JPG, PNG, atau GIF.'),
@@ -195,8 +191,9 @@ class _PhotoPreviewPageState extends State<PhotoPreviewPage> {
       }
       
       // Check file size (max 5MB)
-      final fileSizeInMB = await _photoCacheService.getFileSizeInMB(newPhoto);
+      final fileSizeInMB = await _photoCacheService.getFileSizeInMB(originalFile);
       if (fileSizeInMB > 5.0) {
+        Navigator.of(context).pop(); // Close loading dialog
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('Ukuran file terlalu besar. Maksimal 5MB.'),
@@ -206,13 +203,53 @@ class _PhotoPreviewPageState extends State<PhotoPreviewPage> {
         return;
       }
       
-      setState(() {
-        _capturedImages.add(newPhoto);
-        _selectedImageIndex = _capturedImages.length - 1;
-      });
+      // Add watermark to all photos (both camera and gallery)
+       print('🔍 DEBUG: Adding watermark to photo from widget...');
+       final processedPhoto = await WatermarkService.addWatermarkToImage(originalFile);
+       print('🔍 DEBUG: Watermark added successfully to widget photo');
+       
+       // Show loading dialog AFTER watermark is applied
+       if (mounted) {
+         showDialog(
+           context: context,
+           barrierDismissible: false,
+           builder: (BuildContext context) {
+             return const AlertDialog(
+               content: Row(
+                 children: [
+                   CircularProgressIndicator(),
+                   SizedBox(width: 20),
+                   Text('Menyimpan foto...'),
+                 ],
+               ),
+             );
+           },
+         );
+       }
+       
+       // Update UI on main thread
+       if (mounted) {
+         setState(() {
+           _capturedImages.add(processedPhoto);
+         });
+         
+         // Save to cache after updating UI
+         await _photoCacheService.saveItemPhotos(widget.itemId, _capturedImages);
+         
+         Navigator.of(context).pop(); // Close loading dialog after cache save
+       }
       
-      // Update cache
-      await _photoCacheService.saveItemPhotos(widget.itemId, _capturedImages);
+    } catch (e) {
+      if (mounted) {
+        Navigator.of(context).pop(); // Close loading dialog
+        print('❌ ERROR: Failed to process photo in widget: $e');
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Gagal memproses foto: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
     }
   }
 
