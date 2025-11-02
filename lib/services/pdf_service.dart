@@ -19,8 +19,6 @@ class PdfService {
   static Future<File> generateReceiptPdf({
     required DeliveryTransactionDetailData deliveryData,
     required String deliveryCode,
-    required String senderName,
-    required String recipientLocation,
   }) async {
     // Initialize locale data for Indonesian date formatting
     await initializeDateFormatting('id_ID', null);
@@ -29,6 +27,21 @@ class PdfService {
     final now = DateTime.now();
     final dateFormatter = DateFormat('dd MMMM yyyy, HH:mm', 'id_ID');
     final formattedDate = dateFormatter.format(now);
+
+    // Calculate dynamic values from data
+    String senderName = 'N/A';
+    String recipientLocation = 'N/A';
+    
+    // "Dikirim Dari" uses userInput from items (not consignees)
+    if (deliveryData.items.isNotEmpty) {
+      senderName = deliveryData.items.first.userInput ?? 'N/A';
+    }
+    
+    // "Ditujukan Kepada" uses the LAST consignee's NAME (not userInput)
+    if (deliveryData.consignees.isNotEmpty) {
+      final lastConsignee = deliveryData.consignees.last;
+      recipientLocation = lastConsignee.name;
+    }
 
     pdf.addPage(
       pw.Page(
@@ -51,7 +64,7 @@ class PdfService {
               pw.SizedBox(height: 30),
               
               // Signatures Section
-              _buildSignaturesSection(deliveryData.consignees, formattedDate),
+              _buildSignaturesSection(deliveryData.items, deliveryData.consignees, formattedDate),
             ],
           );
         },
@@ -206,10 +219,17 @@ class PdfService {
   }
 
   /// Build signatures section
-  static pw.Widget _buildSignaturesSection(List<DeliveryConsignee> consignees, String currentDate) {
-    // Determine signature layout based on consignee count
-    final isMultipleConsignees = consignees.length > 1;
-    
+  static pw.Widget _buildSignaturesSection(List<DeliveryItem> items, List<DeliveryConsignee> consignees, String currentDate) {
+    if (consignees.isEmpty) {
+      return pw.Container();
+    }
+
+    // Get sender name from items userInput
+    String senderName = 'N/A';
+    if (items.isNotEmpty) {
+      senderName = items.first.userInput ?? 'N/A';
+    }
+
     return pw.Container(
       width: double.infinity,
       padding: const pw.EdgeInsets.all(16),
@@ -218,40 +238,47 @@ class PdfService {
       ),
       child: pw.Column(
         children: [
-          if (isMultipleConsignees) ...[
-            // Multiple consignees - show as "Perantara"
+          if (consignees.length == 1) ...[
+            // Single consignee - only fills "Penerima", sender comes from items
             pw.Row(
               mainAxisAlignment: pw.MainAxisAlignment.spaceEvenly,
               children: [
-                _buildSignatureBox('Pengirim', 'Robby', currentDate),
-                _buildSignatureBox('Perantara', consignees.first.name, currentDate),
-                _buildSignatureBox('Perantara', consignees.length > 1 ? consignees[1].name : 'Ionu', currentDate),
-              ],
-            ),
-            pw.SizedBox(height: 30),
-            pw.Row(
-              mainAxisAlignment: pw.MainAxisAlignment.center,
-              children: [
-                _buildSignatureBox('Penerima', 'Iqbal', currentDate),
+                _buildSignatureBox('Pengirim', senderName, currentDate),
+                _buildSignatureBox('Penerima', consignees[0].name, currentDate),
               ],
             ),
           ] else ...[
-            // Single consignee - show as "Penerima"
-            pw.Row(
-              mainAxisAlignment: pw.MainAxisAlignment.spaceEvenly,
-              children: [
-                _buildSignatureBox('Pengirim', 'Robby', currentDate),
-                _buildSignatureBox('Perantara', 'Jordan', currentDate),
-                _buildSignatureBox('Perantara', 'Ionu', currentDate),
-              ],
-            ),
-            pw.SizedBox(height: 30),
-            pw.Row(
-              mainAxisAlignment: pw.MainAxisAlignment.center,
-              children: [
-                _buildSignatureBox('Penerima', consignees.isNotEmpty ? consignees.first.name : 'Iqbal', currentDate),
-              ],
-            ),
+            // Multiple consignees - consignees fill "Perantara" and "Penerima", sender comes from items
+            () {
+              List<pw.Widget> topRowSignatures = [];
+              
+              // Add sender (from items userInput)
+              topRowSignatures.add(_buildSignatureBox('Pengirim', senderName, currentDate));
+              
+              // Add intermediaries (all consignees except the last one)
+              for (int i = 0; i < consignees.length - 1; i++) {
+                topRowSignatures.add(_buildSignatureBox('Perantara', consignees[i].name, currentDate));
+              }
+              
+              return pw.Column(
+                children: [
+                  // Create top row with sender and intermediaries
+                  pw.Row(
+                    mainAxisAlignment: pw.MainAxisAlignment.spaceEvenly,
+                    children: topRowSignatures,
+                  ),
+                  pw.SizedBox(height: 30),
+                  
+                  // Bottom row with recipient (last consignee)
+                  pw.Row(
+                    mainAxisAlignment: pw.MainAxisAlignment.center,
+                    children: [
+                      _buildSignatureBox('Penerima', consignees.last.name, currentDate),
+                    ],
+                  ),
+                ],
+              );
+            }(),
           ],
         ],
       ),

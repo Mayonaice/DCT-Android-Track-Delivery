@@ -73,6 +73,7 @@ class DeliveryItem {
   final String serialNumber;
   final String itemDescription;
   final String? deliveryNo;
+  final String? userInput;
   final List<DeliveryPhoto> photo;
 
   DeliveryItem({
@@ -81,6 +82,7 @@ class DeliveryItem {
     required this.serialNumber,
     required this.itemDescription,
     this.deliveryNo,
+    this.userInput,
     required this.photo,
   });
 
@@ -91,6 +93,7 @@ class DeliveryItem {
       serialNumber: json['serialNumber'] ?? '',
       itemDescription: json['itemDescription'] ?? '',
       deliveryNo: json['deliveryNo'],
+      userInput: json['userInput'],
       photo: (json['photo'] as List<dynamic>?)
           ?.map((item) => DeliveryPhoto.fromJson(item))
           .toList() ?? [],
@@ -115,16 +118,19 @@ class DeliveryPhoto {
 class DeliveryConsignee {
   final String name;
   final String phoneNumber;
+  final String? userInput;
 
   DeliveryConsignee({
     required this.name,
     required this.phoneNumber,
+    this.userInput,
   });
 
   factory DeliveryConsignee.fromJson(Map<String, dynamic> json) {
     return DeliveryConsignee(
       name: json['name'] ?? '',
       phoneNumber: json['phoneNumber'] ?? '',
+      userInput: json['userInput'],
     );
   }
 }

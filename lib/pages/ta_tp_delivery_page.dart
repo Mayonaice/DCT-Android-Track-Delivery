@@ -461,8 +461,6 @@ class _TaTpDeliveryPageState extends State<TaTpDeliveryPage> {
             final pdfFile = await PdfService.generateReceiptPdf(
               deliveryData: _deliveryData!,
               deliveryCode: widget.deliveryCode,
-              senderName: _deliveryData?.consignees.isNotEmpty == true ? _deliveryData!.consignees.first.name : 'N/A',
-              recipientLocation: 'Lokal', // You may need to get this from delivery data
             );
             
             print('🔍 DEBUG: PDF generated successfully at: ${pdfFile.path}');
