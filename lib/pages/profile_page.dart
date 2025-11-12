@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'dart:async';
 import 'package:image_picker/image_picker.dart';
 import 'dart:convert';
 import 'dart:io';
@@ -80,7 +81,9 @@ class _ProfilePageState extends State<ProfilePage> {
       }
     } catch (e) {
       setState(() {
-        _errorMessage = 'Terjadi kesalahan: ${e.toString()}';
+        _errorMessage = e is TimeoutException
+            ? 'Koneksi Timeout, harap hubungi tim IT'
+            : 'Terjadi kesalahan: ${e.toString()}';
         _isLoading = false;
       });
     }

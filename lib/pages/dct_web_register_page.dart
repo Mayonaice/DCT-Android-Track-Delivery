@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'dart:async';
 import '../services/api_service.dart';
 import '../services/storage_service.dart';
 import '../widgets/custommodals.dart';
@@ -106,9 +107,12 @@ class _DctWebRegisterPageState extends State<DctWebRegisterPage> {
     } catch (e) {
       print('🚨 DEBUG: DaftarByDCT exception occurred: $e');
       CustomModals.hideLoadingModal(context);
+      final message = e is TimeoutException
+          ? 'Koneksi Timeout, harap hubungi tim IT'
+          : 'Terjadi kesalahan: ${e.toString()}';
       CustomModals.showErrorModal(
         context,
-        'Terjadi kesalahan: ${e.toString()}',
+        message,
       );
     } finally {
       print('🔍 DEBUG: Setting loading state to false');

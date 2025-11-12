@@ -361,11 +361,14 @@ class PdfService {
       print('🔍 DEBUG: ReceiveDocuments response: $response');
 
       // Check if response has the expected structure
-      // Response structure: {"success": true, "data": {"ok": true, "data": [...]}}
+      // Response structure (server): { Ok: bool, Message: string, Data: [...] }
+      // Our ApiService wraps it as: { success: bool, data: rawResponse }
       if (response['success'] == true) {
         final responseData = response['data'];
-        if (responseData != null && responseData['ok'] == true) {
-          final documents = responseData['data'] as List?;
+        final bool innerOk = (responseData?['ok'] == true) || (responseData?['Ok'] == true);
+        final dynamic payload = responseData?['data'] ?? responseData?['Data'];
+        if (responseData != null && innerOk) {
+          final documents = payload as List?;
           print('🔍 DEBUG: Documents found: ${documents?.length ?? 0}');
           
           if (documents != null && documents.isNotEmpty) {
@@ -373,8 +376,9 @@ class PdfService {
             final document = documents.first;
             print('🔍 DEBUG: First document keys: ${document.keys.toList()}');
             
-            final photo64 = document['photo64'] as String?;
-            final filename = document['filename'] as String?;
+            // Handle case-insensitive keys from server
+            final photo64 = (document['photo64'] ?? document['Photo64']) as String?;
+            final filename = (document['filename'] ?? document['Filename']) as String?;
             
             print('🔍 DEBUG: photo64 length: ${photo64?.length ?? 0}');
             print('🔍 DEBUG: filename: $filename');
@@ -405,7 +409,8 @@ class PdfService {
           return null;
         }
       } else {
-        print('🚨 DEBUG: Inner response not successful: ${responseData?['message']}');
+        final responseData = response['data'];
+        print('🚨 DEBUG: Inner response not successful: ${responseData?['message'] ?? response['message']}');
         return null;
       }
     } else {

@@ -119,11 +119,21 @@ class DeliveryConsignee {
   final String name;
   final String phoneNumber;
   final String? userInput;
+  final int? seqNo;
+  final String? deliveryNo;
+  final String? deliveryCode;
+  final String? timeInput;
+  final String? timeReceived;
 
   DeliveryConsignee({
     required this.name,
     required this.phoneNumber,
     this.userInput,
+    this.seqNo,
+    this.deliveryNo,
+    this.deliveryCode,
+    this.timeInput,
+    this.timeReceived,
   });
 
   factory DeliveryConsignee.fromJson(Map<String, dynamic> json) {
@@ -131,6 +141,11 @@ class DeliveryConsignee {
       name: json['name'] ?? '',
       phoneNumber: json['phoneNumber'] ?? '',
       userInput: json['userInput'],
+      seqNo: json['seqNo'],
+      deliveryNo: json['deliveryNo'],
+      deliveryCode: json['deliveryCode'],
+      timeInput: json['timeInput'],
+      timeReceived: json['timeReceived'],
     );
   }
 }

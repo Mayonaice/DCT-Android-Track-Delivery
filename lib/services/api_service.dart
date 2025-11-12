@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:async';
 import 'package:http/http.dart' as http;
 import '../config/config.dart';
 import '../models/transaction_model.dart';
@@ -32,7 +33,7 @@ class ApiService {
           'username': username,
           'password': password,
         }),
-      );
+      ).timeout(const Duration(seconds: 15));
 
       print('🔍 DEBUG: Response status: ${response.statusCode}');
       print('🔍 DEBUG: Response body: ${response.body}');
@@ -145,7 +146,9 @@ class ApiService {
       print('🚨 DEBUG: Exception occurred: $e');
       return {
         'success': false,
-        'message': 'Terjadi kesalahan koneksi: ${e.toString()}',
+        'message': e is TimeoutException
+            ? 'Koneksi Timeout, harap hubungi tim IT'
+            : 'Terjadi kesalahan koneksi: ${e.toString()}',
         'data': null,
       };
     }
@@ -169,7 +172,7 @@ class ApiService {
           'username': username,
           'password': password,
         }),
-      );
+      ).timeout(const Duration(seconds: 15));
 
       print('🔍 DEBUG: Response status: ${response.statusCode}');
       print('🔍 DEBUG: Response body: ${response.body}');
@@ -279,7 +282,9 @@ class ApiService {
       print('🚨 DEBUG: Exception occurred: $e');
       return {
         'success': false,
-        'message': 'Terjadi kesalahan koneksi: ${e.toString()}',
+        'message': e is TimeoutException
+            ? 'Koneksi Timeout, harap hubungi tim IT'
+            : 'Terjadi kesalahan koneksi: ${e.toString()}',
         'data': null,
       };
     }
@@ -308,7 +313,8 @@ class ApiService {
 
       print('🔍 DEBUG: GET Headers: $headers');
 
-      final response = await http.get(url, headers: headers);
+      final response = await http.get(url, headers: headers)
+          .timeout(const Duration(seconds: 15));
       
       print('🔍 DEBUG: GET Response status: ${response.statusCode}');
       print('🔍 DEBUG: GET Response body: ${response.body}');
@@ -353,7 +359,9 @@ class ApiService {
       print('🚨 DEBUG: GET request exception: $e');
       return {
         'success': false,
-        'message': 'Terjadi kesalahan koneksi: ${e.toString()}',
+        'message': e is TimeoutException
+            ? 'Koneksi Timeout, harap hubungi tim IT'
+            : 'Terjadi kesalahan koneksi: ${e.toString()}',
         'data': null,
       };
     }
@@ -389,7 +397,7 @@ class ApiService {
         url,
         headers: headers,
         body: jsonEncode(body),
-      );
+      ).timeout(const Duration(seconds: 15));
 
       print('🔍 DEBUG: Response status code: ${response.statusCode}');
       print('🔍 DEBUG: Response headers: ${response.headers}');
@@ -441,7 +449,9 @@ class ApiService {
       print('🚨 DEBUG: POST request exception: $e');
       return {
         'success': false,
-        'message': 'Terjadi kesalahan koneksi: ${e.toString()}',
+        'message': e is TimeoutException
+            ? 'Koneksi Timeout, harap hubungi tim IT'
+            : 'Terjadi kesalahan koneksi: ${e.toString()}',
         'data': null,
       };
     }
@@ -530,7 +540,7 @@ class ApiService {
           'Authorization': 'Bearer $token',
         },
         body: jsonEncode(requestBody),
-      );
+      ).timeout(const Duration(seconds: 20));
 
       print('🔍 DEBUG: Response status: ${response.statusCode}');
       print('🔍 DEBUG: Response body: ${response.body}');
@@ -594,7 +604,9 @@ class ApiService {
       print('🚨 DEBUG: Exception occurred: $e');
       return {
         'success': false,
-        'message': 'Terjadi kesalahan koneksi: ${e.toString()}',
+        'message': e is TimeoutException
+            ? 'Koneksi Timeout, harap hubungi tim IT'
+            : 'Terjadi kesalahan koneksi: ${e.toString()}',
         'data': null,
       };
     }
@@ -640,7 +652,9 @@ class ApiService {
     } catch (e) {
       return {
         'success': false,
-        'message': 'Terjadi kesalahan saat mengambil data profil: ${e.toString()}',
+        'message': e is TimeoutException
+            ? 'Koneksi Timeout, harap hubungi tim IT'
+            : 'Terjadi kesalahan saat mengambil data profil: ${e.toString()}',
         'data': null,
       };
     }
@@ -659,7 +673,9 @@ class ApiService {
       print('🚨 DEBUG: Error updating profile: $e');
       return {
         'success': false,
-        'message': 'Terjadi kesalahan saat memperbarui profil: ${e.toString()}',
+        'message': e is TimeoutException
+            ? 'Koneksi Timeout, harap hubungi tim IT'
+            : 'Terjadi kesalahan saat memperbarui profil: ${e.toString()}',
         'data': null,
       };
     }
@@ -732,7 +748,9 @@ class ApiService {
       print('🚨 DEBUG: Error changing password: $e');
       return {
         'success': false,
-        'message': 'Terjadi kesalahan saat mengubah password: ${e.toString()}',
+        'message': e is TimeoutException
+            ? 'Koneksi Timeout, harap hubungi tim IT'
+            : 'Terjadi kesalahan saat mengubah password: ${e.toString()}',
         'data': null,
       };
     }
@@ -779,7 +797,9 @@ class ApiService {
       print('🚨 DEBUG: Error during registration: $e');
       return {
         'success': false,
-        'message': 'Terjadi kesalahan saat mendaftar: ${e.toString()}',
+        'message': e is TimeoutException
+            ? 'Koneksi Timeout, harap hubungi tim IT'
+            : 'Terjadi kesalahan saat mendaftar: ${e.toString()}',
         'data': null,
       };
     }
@@ -824,7 +844,9 @@ class ApiService {
       print('🚨 DEBUG: Error during register verification: $e');
       return {
         'success': false,
-        'message': 'Terjadi kesalahan saat mengirim kode verifikasi: ${e.toString()}',
+        'message': e is TimeoutException
+            ? 'Koneksi Timeout, harap hubungi tim IT'
+            : 'Terjadi kesalahan saat mengirim kode verifikasi: ${e.toString()}',
         'data': null,
       };
     }
@@ -866,7 +888,9 @@ class ApiService {
       print('🚨 DEBUG: Error during OTP verification: $e');
       return {
         'success': false,
-        'message': 'Terjadi kesalahan saat verifikasi OTP: ${e.toString()}',
+        'message': e is TimeoutException
+            ? 'Koneksi Timeout, harap hubungi tim IT'
+            : 'Terjadi kesalahan saat verifikasi OTP: ${e.toString()}',
         'data': null,
       };
     }
@@ -953,7 +977,9 @@ class ApiService {
       print('🚨 DEBUG: Error getting delivery detail: $e');
       return DeliveryDetailResponse(
         ok: false,
-        message: 'Terjadi kesalahan saat mengambil detail pengiriman: ${e.toString()}',
+        message: e is TimeoutException
+            ? 'Koneksi Timeout, harap hubungi tim IT'
+            : 'Terjadi kesalahan saat mengambil detail pengiriman: ${e.toString()}',
         data: null,
       );
     }
@@ -973,7 +999,7 @@ class ApiService {
           'Content-Type': 'application/json',
           'Accept': 'application/json',
         },
-      );
+      ).timeout(const Duration(seconds: 15));
 
       print('🔍 DEBUG: LoginByCode Response status: ${response.statusCode}');
       print('🔍 DEBUG: LoginByCode Response body: ${response.body}');
@@ -1005,7 +1031,9 @@ class ApiService {
       print('🚨 DEBUG: LoginByCode error: $e');
       return LoginCodeResponse(
         ok: false,
-        message: 'Terjadi kesalahan koneksi: ${e.toString()}',
+        message: e is TimeoutException
+            ? 'Koneksi Timeout, harap hubungi tim IT'
+            : 'Terjadi kesalahan koneksi: ${e.toString()}',
       );
     }
   }
@@ -1026,7 +1054,7 @@ class ApiService {
           'Accept': 'application/json',
           'Authorization': 'Bearer $token',
         },
-      );
+      ).timeout(const Duration(seconds: 15));
 
       print('🔍 DEBUG: TransactionDetail Response status: ${response.statusCode}');
       print('🔍 DEBUG: TransactionDetail Response body: ${response.body}');
@@ -1060,7 +1088,9 @@ class ApiService {
       print('🚨 DEBUG: TransactionDetail error: $e');
       return DeliveryTransactionDetailResponse(
         ok: false,
-        message: 'Terjadi kesalahan koneksi: ${e.toString()}',
+        message: e is TimeoutException
+            ? 'Koneksi Timeout, harap hubungi tim IT'
+            : 'Terjadi kesalahan koneksi: ${e.toString()}',
         data: null,
       );
     }
@@ -1089,7 +1119,7 @@ class ApiService {
           'Accept': 'application/json',
           'Authorization': 'Bearer $token',
         },
-      );
+      ).timeout(const Duration(seconds: 15));
 
       print('🔍 DEBUG: Delivery status detail Response status: ${response.statusCode}');
       print('🔍 DEBUG: Delivery status detail Response body: ${response.body}');
@@ -1123,7 +1153,9 @@ class ApiService {
       print('🚨 DEBUG: Delivery status detail error: $e');
       return DeliveryStatusDetailResponse(
         ok: false,
-        message: 'Terjadi kesalahan koneksi: ${e.toString()}',
+        message: e is TimeoutException
+            ? 'Koneksi Timeout, harap hubungi tim IT'
+            : 'Terjadi kesalahan koneksi: ${e.toString()}',
         data: [],
       );
     }
@@ -1145,7 +1177,7 @@ class ApiService {
           'Accept': 'application/json',
           'Authorization': 'Bearer $token',
         },
-      );
+      ).timeout(const Duration(seconds: 15));
 
       print('🔍 DEBUG: Notification response status: ${response.statusCode}');
       print('🔍 DEBUG: Notification response body: ${response.body}');
@@ -1180,7 +1212,7 @@ class ApiService {
           'Accept': 'application/json',
           'Authorization': 'Bearer $token',
         },
-      );
+      ).timeout(const Duration(seconds: 15));
 
       print('🔍 DEBUG: Mark as read response status: ${response.statusCode}');
       print('🔍 DEBUG: Mark as read response body: ${response.body}');
@@ -1215,7 +1247,7 @@ class ApiService {
           'Accept': 'application/json',
           'Authorization': 'Bearer $token',
         },
-      );
+      ).timeout(const Duration(seconds: 15));
 
       print('🔍 DEBUG: Delete notification response status: ${response.statusCode}');
       print('🔍 DEBUG: Delete notification response body: ${response.body}');
@@ -1271,7 +1303,7 @@ class ApiService {
           'Accept': 'image/*',
           'Authorization': 'Bearer $token',
         },
-      );
+      ).timeout(const Duration(seconds: 15));
 
       print('🔍 DEBUG: Get profile image response status: ${response.statusCode}');
       print('🔍 DEBUG: Get profile image response content-type: ${response.headers['content-type']}');
@@ -1304,7 +1336,9 @@ class ApiService {
       print('❌ DEBUG: Error getting profile image: $e');
       return {
         'success': false,
-        'message': 'Error getting profile image: $e',
+        'message': e is TimeoutException
+            ? 'Koneksi Timeout, harap hubungi tim IT'
+            : 'Error getting profile image: $e',
       };
     }
   }
@@ -1330,7 +1364,7 @@ class ApiService {
           'Base64': base64,
           'Filename': filename,
         }),
-      );
+      ).timeout(const Duration(seconds: 20));
 
       print('DEBUG API: Response status: ${response.statusCode}');
       print('DEBUG API: Response body: ${response.body}');
@@ -1351,7 +1385,9 @@ class ApiService {
       print('DEBUG API: Exception occurred: $e');
       return {
         'success': false,
-        'message': 'Network error: $e',
+        'message': e is TimeoutException
+            ? 'Koneksi Timeout, harap hubungi tim IT'
+            : 'Network error: $e',
       };
     }
   }

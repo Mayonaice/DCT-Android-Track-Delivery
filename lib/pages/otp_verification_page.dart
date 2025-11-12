@@ -122,7 +122,9 @@ class _OtpVerificationPageState extends State<OtpVerificationPage> {
       print('🚨 DEBUG: Error resending OTP: $e');
       CustomModals.showErrorModal(
         context,
-        'Terjadi kesalahan saat mengirim ulang kode OTP',
+        e is TimeoutException
+            ? 'Koneksi Timeout, harap hubungi tim IT'
+            : 'Terjadi kesalahan saat mengirim ulang kode OTP',
       );
     } finally {
       setState(() {
@@ -253,7 +255,9 @@ class _OtpVerificationPageState extends State<OtpVerificationPage> {
       // Set error state for network/system errors
       setState(() {
         _hasError = true;
-        _errorMessage = 'Terjadi kesalahan saat verifikasi OTP';
+        _errorMessage = e is TimeoutException
+            ? 'Koneksi Timeout, harap hubungi tim IT'
+            : 'Terjadi kesalahan saat verifikasi OTP';
       });
     } finally {
       setState(() {

@@ -604,6 +604,15 @@ class _AddItemsFormPageState extends State<AddItemsFormPage> {
                     );
                     return;
                   }
+
+                  // Validasi foto wajib
+                  if (_selectedImages.isEmpty) {
+                    CustomModals.showErrorModal(
+                      context,
+                      'Minimal 1 foto barang harus ditambahkan',
+                    );
+                    return;
+                  }
                   
                   // Buat object ItemData
                   final itemData = ItemData(

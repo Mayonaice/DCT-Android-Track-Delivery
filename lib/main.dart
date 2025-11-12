@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'dart:async';
 import 'package:flutter/services.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'pages/login_with_code_page.dart';
@@ -113,9 +114,12 @@ class _LoginPageState extends State<LoginPage> {
       }
     } catch (e) {
       CustomModals.hideLoadingModal(context);
+      final message = e is TimeoutException
+          ? 'Koneksi Timeout, harap hubungi tim IT'
+          : 'Terjadi kesalahan: ${e.toString()}';
       CustomModals.showErrorModal(
         context,
-        'Terjadi kesalahan: ${e.toString()}',
+        message,
       );
     } finally {
       setState(() {

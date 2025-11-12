@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'dart:async';
 import '../models/delivery_status_detail_model.dart';
 import '../services/api_service.dart';
 import '../widgets/custommodals.dart';
@@ -55,7 +56,9 @@ class _DeliveryStatusDetailPageState extends State<DeliveryStatusDetailPage> {
       }
     } catch (e) {
       setState(() {
-        _errorMessage = 'Terjadi kesalahan: ${e.toString()}';
+        _errorMessage = e is TimeoutException
+            ? 'Koneksi Timeout, harap hubungi tim IT'
+            : 'Terjadi kesalahan: ${e.toString()}';
         _isLoading = false;
       });
     }

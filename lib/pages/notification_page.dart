@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'dart:async';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import '../models/notification_model.dart';
@@ -63,7 +64,9 @@ class _NotificationPageState extends State<NotificationPage> {
       }
     } catch (e) {
       setState(() {
-        _errorMessage = 'Terjadi kesalahan: $e';
+        _errorMessage = e is TimeoutException
+            ? 'Koneksi Timeout, harap hubungi tim IT'
+            : 'Terjadi kesalahan: $e';
         _isLoading = false;
       });
     }
@@ -210,15 +213,17 @@ class _NotificationPageState extends State<NotificationPage> {
                   }
                 }
               }
-            } catch (e) {
-              print('Error handling notification tap: $e');
-              if (mounted) {
-                CustomModals.showErrorModal(
-                  context,
-                  'Terjadi kesalahan saat membuka detail pengiriman',
-                );
-              }
-            }
+    } catch (e) {
+      print('Error handling notification tap: $e');
+      if (mounted) {
+        CustomModals.showErrorModal(
+          context,
+          e is TimeoutException
+              ? 'Koneksi Timeout, harap hubungi tim IT'
+              : 'Terjadi kesalahan saat membuka detail pengiriman',
+        );
+      }
+    }
           }
         },
       ),
@@ -501,7 +506,9 @@ class _NotificationPageState extends State<NotificationPage> {
         Navigator.of(context).pop(); // Close loading if still open
         CustomModals.showErrorModal(
           context,
-          'Terjadi kesalahan saat menghapus notifikasi: $e',
+          e is TimeoutException
+              ? 'Koneksi Timeout, harap hubungi tim IT'
+              : 'Terjadi kesalahan saat menghapus notifikasi: $e',
         );
       }
     }

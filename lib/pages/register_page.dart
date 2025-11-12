@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'dart:async';
 import 'login_with_code_page.dart';
 import 'otp_verification_page.dart';
 import 'dct_web_register_page.dart';
@@ -210,7 +211,12 @@ class _RegisterPageState extends State<RegisterPage> {
       }
     } catch (e) {
       print('🚨 DEBUG: Error during verification: $e');
-      CustomModals.showErrorModal(context, 'Terjadi kesalahan saat mengirim kode verifikasi');
+      CustomModals.showErrorModal(
+        context,
+        e is TimeoutException
+            ? 'Koneksi Timeout, harap hubungi tim IT'
+            : 'Terjadi kesalahan saat mengirim kode verifikasi',
+      );
     } finally {
       setState(() {
         _isLoading = false;

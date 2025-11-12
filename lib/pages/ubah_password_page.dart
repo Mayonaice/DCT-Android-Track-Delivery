@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'dart:async';
 import '../services/api_service.dart';
 import '../services/storage_service.dart';
 import '../widgets/custommodals.dart';
@@ -103,7 +104,9 @@ class _UbahPasswordPageState extends State<UbahPasswordPage> {
       if (mounted) {
         CustomModals.showErrorModal(
           context, 
-          'Terjadi kesalahan: ${e.toString()}',
+          e is TimeoutException
+              ? 'Koneksi Timeout, harap hubungi tim IT'
+              : 'Terjadi kesalahan: ${e.toString()}',
         );
       }
     } finally {

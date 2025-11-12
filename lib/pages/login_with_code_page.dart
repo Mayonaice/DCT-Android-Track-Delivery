@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'dart:async';
 import 'package:flutter/services.dart';
 import '../widgets/custommodals.dart';
 import '../services/api_service.dart';
@@ -118,6 +119,8 @@ class _LoginWithCodePageState extends State<LoginWithCodePage> {
             MaterialPageRoute(
               builder: (context) => TaTpDeliveryPage(
                 deliveryCode: response.data!.deliveryCode,
+                loginCode: code,
+                loginSeqNo: response.data!.seqNo,
                 token: response.data!.token,
                 userRole: userRole,
                 status: response.data!.status,
@@ -149,9 +152,12 @@ class _LoginWithCodePageState extends State<LoginWithCodePage> {
       }
     } catch (e) {
       print('🚨 DEBUG: Login exception occurred: $e');
+      final message = e is TimeoutException
+          ? 'Koneksi Timeout, harap hubungi tim IT'
+          : 'Terjadi kesalahan: ${e.toString()}';
       CustomModals.showErrorModal(
         context,
-        'Terjadi kesalahan: ${e.toString()}',
+        message,
       );
     } finally {
       print('🔍 DEBUG: Setting loading state to false');

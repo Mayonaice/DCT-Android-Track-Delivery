@@ -1,8 +1,12 @@
 import 'package:flutter/material.dart';
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'package:intl/intl.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:http/http.dart' as http;
+import 'package:path/path.dart' as path;
+import '../config/config.dart';
 import '../models/delivery_transaction_detail_model.dart';
 import '../services/api_service.dart';
 import '../services/storage_service.dart';
@@ -94,12 +98,19 @@ class _DeliveryDetailPageState extends State<DeliveryDetailPage> {
       print('🚨 DEBUG: Exception type: ${e.runtimeType}');
       
       setState(() {
-        _errorMessage = 'Terjadi kesalahan: ${e.toString()}';
+        _errorMessage = e is TimeoutException
+            ? 'Koneksi Timeout, harap hubungi tim IT'
+            : 'Terjadi kesalahan: ${e.toString()}';
         _isLoading = false;
       });
       
       if (mounted) {
-        CustomModals.showErrorModal(context, 'Terjadi kesalahan: ${e.toString()}');
+        CustomModals.showErrorModal(
+          context,
+          e is TimeoutException
+              ? 'Koneksi Timeout, harap hubungi tim IT'
+              : 'Terjadi kesalahan: ${e.toString()}',
+        );
       } else {
         print('🚨 DEBUG: Widget not mounted, skipping error modal');
       }
@@ -574,38 +585,61 @@ class _DeliveryDetailPageState extends State<DeliveryDetailPage> {
       CustomModals.showLoadingModal(context, message: 'Memuat tanda terima...');
       
       // Get deliveryNo from first item if available, fallback to deliveryCode
-      String codeForPdf = widget.deliveryCode; // fallback
-      if (_deliveryData?.items.isNotEmpty == true && _deliveryData!.items.first.deliveryNo != null) {
-        codeForPdf = _deliveryData!.items.first.deliveryNo!;
-        print('🔍 DEBUG: Using deliveryNo from first item for PDF: $codeForPdf');
-      } else {
-        print('🔍 DEBUG: No deliveryNo found in items, using deliveryCode for PDF: $codeForPdf');
+      String? deliveryNo;
+      if (_deliveryData?.items.isNotEmpty == true) {
+        deliveryNo = _deliveryData!.items.first.deliveryNo;
       }
       
-      // Try to get PDF path (local first, then from endpoint)
-      final pdfPath = await PdfService.getPdfPathWithFallback(codeForPdf);
+      // If no deliveryNo from items, we cannot proceed
+      if (deliveryNo == null || deliveryNo.isEmpty) {
+        print('🚨 DEBUG: deliveryNo not found in delivery items.');
+        CustomModals.hideLoadingModal(context);
+        CustomModals.showErrorModal(
+          context,
+          'DeliveryNo tidak ditemukan dari data halaman ini. Pastikan detail pengiriman dimuat dengan benar.',
+        );
+        return;
+      }
+      
+      // Build ASHX URL based on environment
+      final receiptUrl = Config.getReceiptDownloadUrl(deliveryNo);
+      print('🔍 DEBUG: DownloadTandaTerima URL: $receiptUrl');
+      
+      // Fetch PDF bytes from ASHX handler
+      final uri = Uri.parse(receiptUrl);
+      final response = await http.get(uri).timeout(const Duration(seconds: 20));
+      print('🔍 DEBUG: ASHX response status: ${response.statusCode}');
+      print('🔍 DEBUG: ASHX response content-type: ${response.headers['content-type']}');
+      
+      if (response.statusCode != 200) {
+        CustomModals.hideLoadingModal(context);
+        CustomModals.showErrorModal(
+          context,
+          'Gagal mengambil tanda terima (status ${response.statusCode}). Pastikan PDF sudah tersedia.',
+        );
+        return;
+      }
+      
+      // Save to temporary file
+      final tempDir = await getTemporaryDirectory();
+      final fileName = 'tanda_terima_${deliveryNo}.pdf';
+      final savedPath = path.join(tempDir.path, fileName);
+      await File(savedPath).writeAsBytes(response.bodyBytes);
+      print('🔍 DEBUG: PDF saved locally at: $savedPath');
       
       // Hide loading indicator
       CustomModals.hideLoadingModal(context);
       
-      if (pdfPath != null && File(pdfPath).existsSync()) {
-        // Navigate to PDF viewer
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (context) => PdfViewerPage(
-              pdfPath: pdfPath,
-              title: 'Tanda Terima - $codeForPdf',
-            ),
+      // Navigate to PDF viewer
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => PdfViewerPage(
+            pdfPath: savedPath,
+            title: 'Tanda Terima - $deliveryNo',
           ),
-        );
-      } else {
-        // Show message that PDF is not available
-        CustomModals.showErrorModal(
-          context,
-          'Tanda terima belum tersedia. PDF akan dibuat setelah proses konfirmasi penerimaan barang.',
-        );
-      }
+        ),
+      );
     } catch (e) {
       // Hide loading indicator if still showing
       CustomModals.hideLoadingModal(context);
@@ -613,7 +647,9 @@ class _DeliveryDetailPageState extends State<DeliveryDetailPage> {
       print('Error opening PDF viewer: $e');
       CustomModals.showErrorModal(
         context,
-        'Terjadi kesalahan saat membuka tanda terima: ${e.toString()}',
+        e is TimeoutException
+            ? 'Koneksi Timeout, harap hubungi tim IT'
+            : 'Terjadi kesalahan saat membuka tanda terima: ${e.toString()}',
       );
     }
   }

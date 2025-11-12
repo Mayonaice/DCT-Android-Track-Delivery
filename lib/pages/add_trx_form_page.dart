@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'dart:async';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
@@ -402,7 +403,10 @@ class _AddTrxFormPageState extends State<AddTrxFormPage> {
       
     } catch (e) {
       print('Error submitting transaction: $e');
-      _showErrorDialog('Terjadi kesalahan: $e');
+      final message = e is TimeoutException
+          ? 'Koneksi Timeout, harap hubungi tim IT'
+          : 'Terjadi kesalahan: $e';
+      _showErrorDialog(message);
     } finally {
       if (mounted) {
         setState(() {
@@ -522,6 +526,8 @@ class _AddTrxFormPageState extends State<AddTrxFormPage> {
       ),
     );
   }
+
+// 
 
   @override
   Widget build(BuildContext context) {
@@ -800,7 +806,7 @@ class _AddTrxFormPageState extends State<AddTrxFormPage> {
                         width: 24,
                         height: 24,
                       ),
-                    ),
+                    ), 
                   ),
                   const SizedBox(height: 20),
                 ],

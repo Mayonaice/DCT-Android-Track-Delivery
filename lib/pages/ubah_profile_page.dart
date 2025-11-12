@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'dart:async';
 import 'package:flutter/services.dart';
 import '../services/api_service.dart';
 import '../services/storage_service.dart';
@@ -109,7 +110,9 @@ class _UbahProfilePageState extends State<UbahProfilePage> {
     } catch (e) {
       print('🚨 DEBUG: Exception in _loadUserProfile: $e');
       setState(() {
-        _errorMessage = 'Terjadi kesalahan: $e';
+        _errorMessage = e is TimeoutException
+            ? 'Koneksi Timeout, harap hubungi tim IT'
+            : 'Terjadi kesalahan: $e';
         _isLoading = false;
       });
     }
@@ -196,7 +199,12 @@ class _UbahProfilePageState extends State<UbahProfilePage> {
     } catch (e) {
       print('🚨 DEBUG: Error saving profile: $e');
       if (mounted) {
-        CustomModals.showErrorModal(context, 'Terjadi kesalahan: ${e.toString()}');
+        CustomModals.showErrorModal(
+          context,
+          e is TimeoutException
+              ? 'Koneksi Timeout, harap hubungi tim IT'
+              : 'Terjadi kesalahan: ${e.toString()}',
+        );
       }
     } finally {
       if (mounted) {

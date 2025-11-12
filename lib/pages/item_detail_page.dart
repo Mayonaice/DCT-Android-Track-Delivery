@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'dart:async';
 import 'package:flutter/services.dart';
 import 'dart:convert';
 import 'dart:typed_data';
@@ -95,7 +96,9 @@ class _ItemDetailPageState extends State<ItemDetailPage> {
       print('🔍 DEBUG: ItemDetailPage - Exception caught: ${e.toString()}');
       print('🔍 DEBUG: ItemDetailPage - Exception type: ${e.runtimeType}');
       setState(() {
-        _errorMessage = 'Terjadi kesalahan: ${e.toString()}';
+        _errorMessage = e is TimeoutException
+            ? 'Koneksi Timeout, harap hubungi tim IT'
+            : 'Terjadi kesalahan: ${e.toString()}';
         _isLoading = false;
       });
     }

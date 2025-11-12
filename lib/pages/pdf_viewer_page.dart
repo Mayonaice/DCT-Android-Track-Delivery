@@ -6,6 +6,8 @@ import 'package:path_provider/path_provider.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:path/path.dart' as path;
 import 'package:cross_file/cross_file.dart';
+import 'package:file_saver/file_saver.dart';
+import 'package:flutter/services.dart';
 
 class PdfViewerPage extends StatefulWidget {
   final String pdfPath;
@@ -333,6 +335,24 @@ class _PdfViewerPageState extends State<PdfViewerPage> {
 
   Future<void> _downloadPdf() async {
     try {
+      // Ensure permissions (show prompt to user)
+      if (Platform.isAndroid) {
+        final manage = await Permission.manageExternalStorage.request();
+        if (!manage.isGranted) {
+          final storage = await Permission.storage.request();
+          if (!storage.isGranted && !manage.isGranted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Izin penyimpanan ditolak. Buka Pengaturan dan aktifkan izin.'),
+                backgroundColor: Colors.red,
+                duration: Duration(seconds: 3),
+              ),
+            );
+            return;
+          }
+        }
+      }
+
       // Show loading
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -355,48 +375,54 @@ class _PdfViewerPageState extends State<PdfViewerPage> {
         ),
       );
 
-      // Request storage permission
-      var status = await Permission.storage.status;
-      if (!status.isGranted) {
-        status = await Permission.storage.request();
-        if (!status.isGranted) {
-          throw Exception('Izin akses storage diperlukan untuk mengunduh file');
-        }
-      }
-
-      // Get Downloads directory
-      Directory? downloadsDir;
-      if (Platform.isAndroid) {
-        downloadsDir = Directory('/storage/emulated/0/Download');
-        if (!downloadsDir.existsSync()) {
-          downloadsDir = await getExternalStorageDirectory();
-        }
-      } else {
-        downloadsDir = await getApplicationDocumentsDirectory();
-      }
-
-      if (downloadsDir == null) {
-        throw Exception('Tidak dapat mengakses folder download');
-      }
+      // Read PDF bytes from the viewer's local file
+      final sourceFile = File(widget.pdfPath);
+      final bytes = await sourceFile.readAsBytes();
 
       // Create filename with timestamp
-      final fileName = 'Tanda_Terima_${widget.title.replaceAll(RegExp(r'[^\w\s-]'), '')}_${DateTime.now().millisecondsSinceEpoch}.pdf';
-      final downloadPath = path.join(downloadsDir.path, fileName);
+      final fileName = 'Tanda_Terima_${widget.title.replaceAll(RegExp(r'[^\w\s-]'), '')}_${DateTime.now().millisecondsSinceEpoch}';
 
-      // Copy file to downloads
-      final sourceFile = File(widget.pdfPath);
-      await sourceFile.copy(downloadPath);
+      String? savedPath;
+      // Try saving directly to public Downloads on Android (pre-Scoped Storage)
+      if (Platform.isAndroid) {
+        try {
+          final downloadsDir = Directory('/storage/emulated/0/Download');
+          if (await downloadsDir.exists()) {
+            final outPath = path.join(downloadsDir.path, '$fileName.pdf');
+            final outFile = File(outPath);
+            await outFile.writeAsBytes(bytes, flush: true);
+            savedPath = outPath;
+          }
+        } catch (_) {
+          // Fall back to FileSaver below
+        }
+      }
+
+      // Fallback or non-Android: use FileSaver (MediaStore/SAF)
+      savedPath ??= await FileSaver.instance.saveFile(
+        name: fileName,
+        bytes: bytes,
+        ext: 'pdf',
+        mimeType: MimeType.pdf,
+      );
 
       // Show success message
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('PDF berhasil diunduh ke: ${path.basename(downloadPath)}'),
+          content: Text(
+            savedPath == null || savedPath.isEmpty
+                ? 'PDF berhasil diunduh ke folder Download'
+                : 'PDF berhasil diunduh: ${savedPath!}'
+          ),
           backgroundColor: Colors.green,
           action: SnackBarAction(
-            label: 'Buka',
+            label: 'Buka Folder',
             textColor: Colors.white,
             onPressed: () {
-              // You can implement opening file manager here if needed
+              if (Platform.isAndroid) {
+                const channel = MethodChannel('com.dct.tracking/android_actions');
+                channel.invokeMethod('openDownloads');
+              }
             },
           ),
         ),

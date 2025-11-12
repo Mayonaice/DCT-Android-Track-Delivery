@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'dart:async';
 import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 import 'dart:io';
@@ -19,6 +20,8 @@ import 'photo_preview_page.dart';
 class TaTpDeliveryPage extends StatefulWidget {
   final String deliveryCode;
   final String? deliveryNo; // Add deliveryNo parameter
+  final String loginCode; // Kode yang dimasukkan user saat login (TP/TA)
+  final int loginSeqNo; // SeqNo dari respon LoginByCode untuk memetakan langkah TP
   final String token;
   final UserRole userRole;
   final String status; // Status dari response login by code
@@ -27,6 +30,8 @@ class TaTpDeliveryPage extends StatefulWidget {
     Key? key,
     required this.deliveryCode,
     this.deliveryNo, // Make it optional for backward compatibility
+    required this.loginCode,
+    required this.loginSeqNo,
     required this.token,
     required this.userRole,
     required this.status,
@@ -47,11 +52,24 @@ class _TaTpDeliveryPageState extends State<TaTpDeliveryPage> {
   String? _errorMessage;
   List<File> _selectedImages = [];
 
+  // Helper: treat sentinel or empty date string as null/empty
+  bool _isNullishDate(String? value) {
+    if (value == null) return true;
+    final v = value.trim();
+    if (v.isEmpty) return true;
+    final lower = v.toLowerCase();
+    // Common sentinel formats: 0001-01-01T00:00:00 or with space
+    if (lower.startsWith('0001-01-01')) return true;
+    return false;
+  }
+
   @override
   void initState() {
     super.initState();
     print('🔍 DEBUG: TaTpDeliveryPage initState called');
     print('🔍 DEBUG: deliveryCode: ${widget.deliveryCode}');
+    print('🔍 DEBUG: loginCode: ${widget.loginCode}');
+    print('🔍 DEBUG: loginSeqNo: ${widget.loginSeqNo}');
     print('🔍 DEBUG: userRole: ${widget.userRole.code}');
     print('🔍 DEBUG: status: ${widget.status}');
     _loadDeliveryDetail();
@@ -89,7 +107,9 @@ class _TaTpDeliveryPageState extends State<TaTpDeliveryPage> {
     } catch (e) {
       print('🔍 DEBUG: TaTpDeliveryPage - Exception: ${e.toString()}');
       setState(() {
-        _errorMessage = 'Terjadi kesalahan: ${e.toString()}';
+        _errorMessage = e is TimeoutException
+            ? 'Koneksi Timeout, harap hubungi tim IT'
+            : 'Terjadi kesalahan: ${e.toString()}';
         _isLoading = false;
       });
     }
@@ -412,28 +432,30 @@ class _TaTpDeliveryPageState extends State<TaTpDeliveryPage> {
       print('🔍 DEBUG: Full response: $response');
       print('🔍 DEBUG: Response type: ${response.runtimeType}');
 
-      // Check API response structure - focus on 'ok' field only
+      // Check API response structure - handle 'ok'/'Ok' casing
       final responseData = response['data'];
       print('🔍 DEBUG: Response data type: ${responseData.runtimeType}');
       print('🔍 DEBUG: Response data content: $responseData');
-      print('🔍 DEBUG: Response data ok value: ${responseData?['ok']}');
+      final bool isOk = (responseData?['ok'] == true) || (responseData?['Ok'] == true);
+      print('🔍 DEBUG: Response data ok value: ${responseData?['ok'] ?? responseData?['Ok']}');
       
-      if (responseData != null && responseData['ok'] == true) {
+      if (responseData != null && isOk) {
         print('🔍 DEBUG: Response data ok is true - SUCCESS!');
         
-        // Check if this is TA role performing "Terima Barang" action
+        // Check if this is TA role performing receive/confirm actions that should generate PDF
         bool shouldCallReceiveDocuments = false;
         final statusInt = int.tryParse(widget.status) ?? 0;
         
         if (widget.userRole == UserRole.ta) {
-          // TA with status 3 (normal "Terima Barang") or status 2 with single consignee (bypass)
-          if (statusInt == 3 || (statusInt == 2 && _deliveryData != null && _deliveryData!.consignees.length == 1)) {
+          // TA with status 3 (Terima Barang) or status 4 (Konfirmasi Terima)
+          // Also allow status 2 with single consignee (bypass)
+          if (statusInt == 3 || statusInt == 4 || (statusInt == 2 && _deliveryData != null && _deliveryData!.consignees.length == 1)) {
             shouldCallReceiveDocuments = true;
-            print('🔍 DEBUG: TA role performing "Terima Barang" - will call ReceiveDocuments endpoint');
+            print('🔍 DEBUG: TA role - will generate PDF and call ReceiveDocuments endpoint (status: $statusInt)');
           }
         }
         
-        // If TA role performing "Terima Barang", also hit ReceiveDocuments endpoint
+        // If TA role performing eligible actions, generate PDF and hit ReceiveDocuments endpoint
         if (shouldCallReceiveDocuments) {
           print('🔍 DEBUG: Generating PDF first before calling ReceiveDocuments...');
           
@@ -457,10 +479,13 @@ class _TaTpDeliveryPageState extends State<TaTpDeliveryPage> {
             
             print('🔍 DEBUG: Final deliveryCodeForReceiveDocuments: $deliveryCodeForReceiveDocuments');
             
+            if (_deliveryData == null) {
+              print('🚨 DEBUG: Cannot generate PDF because _deliveryData is null');
+            } else {
             // Generate PDF first
             final pdfFile = await PdfService.generateReceiptPdf(
               deliveryData: _deliveryData!,
-              deliveryCode: widget.deliveryCode,
+              deliveryCode: deliveryCodeForReceiveDocuments,
             );
             
             print('🔍 DEBUG: PDF generated successfully at: ${pdfFile.path}');
@@ -496,12 +521,15 @@ class _TaTpDeliveryPageState extends State<TaTpDeliveryPage> {
             print('🔍 DEBUG: ReceiveDocuments response: $receiveDocumentsResponse');
             
             final receiveDocumentsData = receiveDocumentsResponse['data'];
+            final bool receiveOk = (receiveDocumentsData?['ok'] == true) || (receiveDocumentsData?['Ok'] == true);
             
-            if (receiveDocumentsData != null && receiveDocumentsData['ok'] == true) {
+            if (receiveDocumentsData != null && receiveOk) {
               print('🔍 DEBUG: ReceiveDocuments call successful with PDF!');
             } else {
-              print('🚨 DEBUG: ReceiveDocuments call failed: ${receiveDocumentsData?['message']}');
+              final msg = receiveDocumentsData?['message'] ?? receiveDocumentsData?['Message'];
+              print('🚨 DEBUG: ReceiveDocuments call failed: $msg');
               // Don't fail the entire operation if ReceiveDocuments fails
+            }
             }
           } catch (error) {
             print('🚨 DEBUG: PDF generation or ReceiveDocuments API call exception: $error');
@@ -532,8 +560,8 @@ class _TaTpDeliveryPageState extends State<TaTpDeliveryPage> {
         return true;
       } else {
         print('🚨 DEBUG: Response data ok is not true - FAILED!');
-        print('🚨 DEBUG: Response data ok value: ${responseData?['ok']}');
-        final errorMessage = responseData?['message'] ?? 'Gagal mengkonfirmasi penerimaan barang';
+        print('🚨 DEBUG: Response data ok value: ${responseData?['ok'] ?? responseData?['Ok']}');
+        final errorMessage = responseData?['message'] ?? responseData?['Message'] ?? 'Gagal mengkonfirmasi penerimaan barang';
         print('🚨 DEBUG: Error message: $errorMessage');
         
         // Gunakan WidgetsBinding untuk memastikan frame selesai sebelum menampilkan modal
@@ -566,7 +594,9 @@ class _TaTpDeliveryPageState extends State<TaTpDeliveryPage> {
         
         CustomModals.showErrorModal(
           context,
-          'Terjadi kesalahan: ${e.toString()}',
+          e is TimeoutException
+              ? 'Koneksi Timeout, harap hubungi tim IT'
+              : 'Terjadi kesalahan: ${e.toString()}',
           onOk: () {
             print('🚨 DEBUG: Exception error modal OK button pressed');
             // Refresh halaman setelah modal ditutup
@@ -860,10 +890,77 @@ class _TaTpDeliveryPageState extends State<TaTpDeliveryPage> {
     
     print('🔍 DEBUG: Checking button enabled for role: ${widget.userRole}, status: ${widget.status}');
     
+    // Helper: consignees-based sequential TP logic
+    List<DeliveryConsignee> _sortedConsignees() {
+      final list = List<DeliveryConsignee>.from(_deliveryData?.consignees ?? []);
+      list.sort((a, b) {
+        final aSeq = a.seqNo ?? 1 << 30; // null seq goes to end
+        final bSeq = b.seqNo ?? 1 << 30;
+        return aSeq.compareTo(bSeq);
+      });
+      return list;
+    }
+
+    List<DeliveryConsignee> _tpConsigneesExcludingLast() {
+      final sorted = _sortedConsignees();
+      if (sorted.length <= 1) return sorted; // nothing to exclude
+      return sorted.sublist(0, sorted.length - 1);
+    }
+
+    int _pendingTpIndex() {
+      final tpList = _tpConsigneesExcludingLast();
+      for (int i = 0; i < tpList.length; i++) {
+        final c = tpList[i];
+        final received = !_isNullishDate(c.timeReceived);
+        if (!received) {
+          return i; // first pending TP step
+        }
+      }
+      return -1; // all TP steps done
+    }
+
+    // Gating TP berlaku bila ada minimal satu langkah TP (>=2 consignees)
+    final hasSequentialTp = (_deliveryData?.consignees.length ?? 0) >= 2;
+
     if (widget.userRole == UserRole.tp) {
-      // TP role: button enabled when status is "2"
-      final enabled = widget.status == "2";
-      print('🔍 DEBUG: TP role - status ${widget.status} - button enabled: $enabled');
+      // TP role: tombol aktif hanya untuk TP yang sesuai loginSeqNo dan sesuai urutan.
+      final sorted = _sortedConsignees();
+      if (sorted.isEmpty) {
+        print('🔍 DEBUG: No consignees found - TP button disabled');
+        return false;
+      }
+
+      int _findCurrentIndex() {
+        for (int i = 0; i < sorted.length; i++) {
+          final c = sorted[i];
+          if (c.seqNo != null && c.seqNo == widget.loginSeqNo) return i;
+        }
+        return -1;
+      }
+
+      final currentIndex = _findCurrentIndex();
+      if (currentIndex == -1) {
+        // Tidak bisa memetakan login ke consignee mana pun: demi keamanan, disable
+        print('🚫 DEBUG: Cannot map loginSeqNo to any consignee.seqNo - TP button disabled');
+        return false;
+      }
+
+      final currentConsignee = sorted[currentIndex];
+      final currentReceived = !_isNullishDate(currentConsignee.timeReceived);
+      final previousAllReceived = sorted
+          .take(currentIndex)
+          .every((c) => !_isNullishDate(c.timeReceived));
+
+      // Untuk kasus berjenjang (>=2 consignees): abaikan status, hanya urutan & timeReceived yang menentukan
+      if (sorted.length >= 2) {
+        final enabled = previousAllReceived && !currentReceived;
+        print('🔍 DEBUG: TP sequential gating -> previousAllReceived: $previousAllReceived, currentReceived: $currentReceived, enabled: $enabled');
+        return enabled;
+      }
+
+      // Kasus single consignee: tetap hormati status == "2"
+      final enabled = (widget.status == "2") && !currentReceived;
+      print('🔍 DEBUG: TP single gating -> status==2: ${widget.status == "2"}, currentReceived: $currentReceived, enabled: $enabled');
       return enabled;
     } else if (widget.userRole == UserRole.ta) {
       // Special case: TA role with status "2" and only 1 consignee bypasses normal rule
@@ -871,6 +968,18 @@ class _TaTpDeliveryPageState extends State<TaTpDeliveryPage> {
       if (widget.status == "2" && widget.status != "4" && _deliveryData != null && _deliveryData!.consignees.length == 1) {
         print('🔍 DEBUG: TA role bypass - status "2" with single consignee, enabling button');
         return true;
+      }
+      
+      // Sequential TP consideration for TA:
+      // If there are >2 consignees, TA should only be enabled when all TP steps are completed
+      if (hasSequentialTp) {
+        final pendingIndex = _pendingTpIndex();
+        final tpAllDone = pendingIndex == -1;
+        if (!tpAllDone) {
+          print('🔍 DEBUG: TA role - sequential TP pending (index $pendingIndex), disabling button');
+          return false;
+        }
+        // All TP steps done -> follow normal TA rules
       }
       
       // Normal TA rules:
@@ -945,7 +1054,9 @@ class _TaTpDeliveryPageState extends State<TaTpDeliveryPage> {
       
       CustomModals.showErrorModal(
         context,
-        'Terjadi kesalahan saat memproses konfirmasi: ${e.toString()}',
+        e is TimeoutException
+            ? 'Koneksi Timeout, harap hubungi tim IT'
+            : 'Terjadi kesalahan saat memproses konfirmasi: ${e.toString()}',
       );
     }
   }
@@ -1119,8 +1230,28 @@ class _TaTpDeliveryPageState extends State<TaTpDeliveryPage> {
     
     print('🔍 DEBUG: Determining button text for role: ${widget.userRole}, status: ${widget.status}');
     
+    // Helper for TP numbering label
+    String _tpOrderLabel() {
+      final list = List<DeliveryConsignee>.from(_deliveryData?.consignees ?? []);
+      list.sort((a, b) => (a.seqNo ?? 1 << 30).compareTo(b.seqNo ?? 1 << 30));
+      if (list.length <= 2) return '';
+      final tpList = list.sublist(0, list.length - 1);
+      int order = 1;
+      for (int i = 0; i < tpList.length; i++) {
+        final c = tpList[i];
+        final received = !_isNullishDate(c.timeReceived);
+        if (!received) {
+          order = i + 1; // next pending TP order (1-based)
+          break;
+        }
+        // if all received, keep last order value
+        order = tpList.length; 
+      }
+      return ' (TP$order)';
+    }
+
     if (widget.userRole == UserRole.tp) {
-      // TP always shows "Terima Barang"
+      // TP shows "Terima Barang" with order label when sequential TP applies
       print('🔍 DEBUG: TP role - button text: Terima Barang');
       return 'Terima Barang';
     } else if (widget.userRole == UserRole.ta) {

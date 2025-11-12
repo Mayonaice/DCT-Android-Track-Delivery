@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'dart:async';
 import 'package:flutter/services.dart';
 import '../models/delivery_detail_model.dart';
 import '../services/api_service.dart';
@@ -81,7 +82,9 @@ class _CheckDeliveryDetailPageState extends State<CheckDeliveryDetailPage> {
       
       CustomModals.showErrorModal(
         context,
-        'Terjadi kesalahan: ${e.toString()}',
+        e is TimeoutException
+            ? 'Koneksi Timeout, harap hubungi tim IT'
+            : 'Terjadi kesalahan: ${e.toString()}',
         onOk: () {
           Navigator.of(context).pop(); // Go back to previous page
         },
