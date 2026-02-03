@@ -22,7 +22,7 @@ class StatusMaster {
     ),
     4: StatusData(
       id: 4,
-      name: 'Diterimna Target',
+      name: 'Diterima Target',
       iconPath: 'assets/images/icon-status5(diterima).png',
       color: Color(0xFF10B981), // Hijau
     ),

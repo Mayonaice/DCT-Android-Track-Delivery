@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'dart:async';
+import 'dart:io';
 import 'package:flutter/services.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'pages/login_with_code_page.dart';
@@ -9,15 +10,98 @@ import 'pages/home_page.dart';
 import 'pages/ubah_password_page.dart';
 import 'services/api_service.dart';
 import 'services/storage_service.dart';
+import 'config/config.dart';
 import 'widgets/custommodals.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  if (Platform.isAndroid) {
+    final supported = await _isSupportedAndroidVersion();
+    if (!supported) {
+      runApp(const UnsupportedAndroidApp());
+      return;
+    }
+  }
   
   // Initialize date formatting for Indonesian locale
   await initializeDateFormatting('id_ID', null);
+  final storage = StorageService();
+  final isTest = await storage.isTestMode();
+  Config.setTestMode(isTest);
   
   runApp(const MyApp());
+}
+
+Future<bool> _isSupportedAndroidVersion() async {
+  try {
+    const channel = MethodChannel('com.dct.tracking/android_actions');
+    final sdkInt = await channel.invokeMethod<int>('getSdkInt') ?? 0;
+    return sdkInt >= 26;
+  } catch (_) {
+    return true;
+  }
+}
+
+class UnsupportedAndroidApp extends StatelessWidget {
+  const UnsupportedAndroidApp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return const MaterialApp(
+      debugShowCheckedModeBanner: false,
+      home: UnsupportedAndroidPage(),
+    );
+  }
+}
+
+class UnsupportedAndroidPage extends StatefulWidget {
+  const UnsupportedAndroidPage({super.key});
+
+  @override
+  State<UnsupportedAndroidPage> createState() => _UnsupportedAndroidPageState();
+}
+
+class _UnsupportedAndroidPageState extends State<UnsupportedAndroidPage> {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      await showDialog<void>(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) {
+          return AlertDialog(
+            title: const Text('Tidak Didukung'),
+            content: const Text(
+              'Aplikasi sudah tidak lagi mendukung perangkat dengan versi Android 8 kebawah',
+            ),
+            actions: const [],
+          );
+        },
+      );
+    });
+    Future.delayed(const Duration(milliseconds: 1200), () {
+      SystemNavigator.pop();
+      if (Platform.isAndroid) {
+        exit(0);
+      }
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return const Scaffold(
+      backgroundColor: Color(0xFFF8FAFF),
+      body: Center(
+        child: SizedBox(
+          width: 32,
+          height: 32,
+          child: CircularProgressIndicator(),
+        ),
+      ),
+    );
+  }
 }
 
 class MyApp extends StatelessWidget {
@@ -59,12 +143,86 @@ class _LoginPageState extends State<LoginPage> {
   final StorageService _storageService = StorageService();
   bool _isPasswordVisible = false;
   bool _isLoading = false;
+  bool _isTestMode = false;
+  final TextEditingController _testModePasswordController = TextEditingController();
 
   @override
   void dispose() {
     _emailController.dispose();
     _passwordController.dispose();
+    _testModePasswordController.dispose();
     super.dispose();
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _loadTestMode();
+  }
+
+  Future<void> _loadTestMode() async {
+    final enabled = await _storageService.isTestMode();
+    setState(() {
+      _isTestMode = enabled;
+    });
+  }
+
+  Future<bool> _promptTestModePassword() async {
+    _testModePasswordController.clear();
+    final result = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) {
+        return AlertDialog(
+          backgroundColor: Colors.white,
+          title: const Text('Test Mode'),
+          content: TextField(
+            controller: _testModePasswordController,
+            obscureText: true,
+            autofocus: true,
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.of(context).pop(false);
+              },
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                final ok = _testModePasswordController.text.trim() == '789123';
+                Navigator.of(context).pop(ok);
+              },
+              child: const Text('OK'),
+            ),
+          ],
+        );
+      },
+    );
+    return result == true;
+  }
+
+  Future<void> _onSwitchChanged(bool value) async {
+    if (value) {
+      final ok = await _promptTestModePassword();
+      if (!ok) {
+        setState(() {
+          _isTestMode = false;
+        });
+        return;
+      }
+      await _storageService.setTestMode(true);
+      Config.setTestMode(true);
+      setState(() {
+        _isTestMode = true;
+      });
+    } else {
+      await _storageService.setTestMode(false);
+      Config.setTestMode(false);
+      setState(() {
+        _isTestMode = false;
+      });
+    }
   }
 
   Future<void> _handleLogin() async {
@@ -138,6 +296,13 @@ class _LoginPageState extends State<LoginPage> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              Align(
+                alignment: Alignment.topRight,
+                child: Switch(
+                  value: _isTestMode,
+                  onChanged: (v) => _onSwitchChanged(v),
+                ),
+              ),
               const SizedBox(height: 60),
               // Header with DCT logo and text
               Center(

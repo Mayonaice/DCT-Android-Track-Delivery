@@ -313,6 +313,7 @@ class _HomePageState extends State<HomePage> {
     return '${date.day} ${months[date.month - 1]} ${date.year} ${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}';
   }
 
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -370,7 +371,6 @@ class _HomePageState extends State<HomePage> {
                           ),
                         ),
                         const SizedBox(width: 12),
-                        // Profile Picture
                         Container(
                           width: 50,
                           height: 50,

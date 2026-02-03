@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'dart:async';
+import 'package:webview_flutter/webview_flutter.dart';
+import '../config/config.dart';
 import '../services/api_service.dart';
 import '../services/storage_service.dart';
 import '../widgets/custommodals.dart';
@@ -299,36 +301,29 @@ class _DctWebRegisterPageState extends State<DctWebRegisterPage> {
 
                         const SizedBox(height: 36), // increased spacing as requested
 
-                        // Two links: Lupa Password DCT, Lupa Password Email
-                        Column(
-                          children: [
-                            TextButton(
-                              onPressed: () {},
-                              style: TextButton.styleFrom(
-                                foregroundColor: linkBlue,
-                                padding: EdgeInsets.zero,
-                                minimumSize: const Size(0, 0),
-                                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        TextButton(
+                          onPressed: () {
+                            final url = Config.isTestMode
+                                ? 'https://dev.advantagescm.com/ADV/APP/forgotpassword.aspx'
+                                : 'https://dctweb2.advantagescm.com/ADV/APP/forgotpassword.aspx';
+                            Navigator.of(context).push(
+                              MaterialPageRoute(
+                                builder: (_) => ForgotPasswordWebViewPage(
+                                  initialUrl: url,
+                                ),
                               ),
-                              child: const Text(
-                                'Lupa Password DCT',
-                                style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500),
-                              ),
-                            ),
-                            TextButton(
-                              onPressed: () {},
-                              style: TextButton.styleFrom(
-                                foregroundColor: linkBlue,
-                                padding: EdgeInsets.zero,
-                                minimumSize: const Size(0, 0),
-                                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                              ),
-                              child: const Text(
-                                'Lupa Password Email',
-                                style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500),
-                              ),
-                            ),
-                          ],
+                            );
+                          },
+                          style: TextButton.styleFrom(
+                            foregroundColor: linkBlue,
+                            padding: EdgeInsets.zero,
+                            minimumSize: const Size(0, 0),
+                            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                          ),
+                          child: const Text(
+                            'Change Password',
+                            style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500),
+                          ),
                         ),
                       ],
                     ),
@@ -338,6 +333,88 @@ class _DctWebRegisterPageState extends State<DctWebRegisterPage> {
             );
           },
         ),
+      ),
+    );
+  }
+}
+
+class ForgotPasswordWebViewPage extends StatefulWidget {
+  final String initialUrl;
+
+  const ForgotPasswordWebViewPage({
+    Key? key,
+    required this.initialUrl,
+  }) : super(key: key);
+
+  @override
+  State<ForgotPasswordWebViewPage> createState() => _ForgotPasswordWebViewPageState();
+}
+
+class _ForgotPasswordWebViewPageState extends State<ForgotPasswordWebViewPage> {
+  late final WebViewController _controller;
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = WebViewController()
+      ..setJavaScriptMode(JavaScriptMode.unrestricted)
+      ..setNavigationDelegate(
+        NavigationDelegate(
+          onPageStarted: (_) {
+            if (!mounted) return;
+            setState(() {
+              _isLoading = true;
+            });
+          },
+          onPageFinished: (_) {
+            if (!mounted) return;
+            setState(() {
+              _isLoading = false;
+            });
+          },
+          onWebResourceError: (_) {
+            if (!mounted) return;
+            setState(() {
+              _isLoading = false;
+            });
+          },
+        ),
+      )
+      ..loadRequest(Uri.parse(widget.initialUrl));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: const Color(0xFFF8FAFF),
+      appBar: AppBar(
+        backgroundColor: const Color(0xFFF8FAFF),
+        elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back, color: Color(0xFF1B8B7A)),
+          onPressed: () => Navigator.of(context).pop(),
+        ),
+        title: const Text(
+          'Change Password',
+          style: TextStyle(
+            color: Color(0xFF1B8B7A),
+            fontSize: 18,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        centerTitle: false,
+      ),
+      body: Stack(
+        children: [
+          WebViewWidget(controller: _controller),
+          if (_isLoading)
+            const Center(
+              child: CircularProgressIndicator(
+                valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF1B8B7A)),
+              ),
+            ),
+        ],
       ),
     );
   }

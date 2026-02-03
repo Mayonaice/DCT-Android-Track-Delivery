@@ -1,13 +1,11 @@
-import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_pdfview/flutter_pdfview.dart';
-import 'package:share_plus/share_plus.dart';
-import 'package:path_provider/path_provider.dart';
+import 'package:path/path.dart' as p;
 import 'package:permission_handler/permission_handler.dart';
-import 'package:path/path.dart' as path;
-import 'package:cross_file/cross_file.dart';
-import 'package:file_saver/file_saver.dart';
+import 'dart:io';
+import 'package:path_provider/path_provider.dart';
 import 'package:flutter/services.dart';
+import '../widgets/custommodals.dart';
 
 class PdfViewerPage extends StatefulWidget {
   final String pdfPath;
@@ -16,7 +14,7 @@ class PdfViewerPage extends StatefulWidget {
   const PdfViewerPage({
     Key? key,
     required this.pdfPath,
-    this.title = 'Tanda Terima',
+    required this.title,
   }) : super(key: key);
 
   @override
@@ -24,13 +22,15 @@ class PdfViewerPage extends StatefulWidget {
 }
 
 class _PdfViewerPageState extends State<PdfViewerPage> {
-  int? pages = 0;
-  int? currentPage = 0;
-  bool isReady = false;
-  String errorMessage = '';
+  bool _isRendered = false;
+  int _pages = 0;
+  int _currentPage = 0;
+  final PDFViewController? _controller = null;
+  static const MethodChannel _channel = MethodChannel('com.dct.tracking/android_actions');
 
   @override
   Widget build(BuildContext context) {
+    final fileName = p.basename(widget.pdfPath);
     return Scaffold(
       backgroundColor: const Color(0xFFF8FAFF),
       appBar: AppBar(
@@ -44,444 +44,124 @@ class _PdfViewerPageState extends State<PdfViewerPage> {
           onPressed: () => Navigator.pop(context),
         ),
         title: Text(
-          widget.title,
+          widget.title.isNotEmpty ? widget.title : fileName,
           style: const TextStyle(
             color: Color(0xFF1B8B7A),
             fontSize: 18,
             fontWeight: FontWeight.w600,
           ),
         ),
-        centerTitle: true,
+        centerTitle: false,
         actions: [
           IconButton(
-            icon: const Icon(
-              Icons.share,
-              color: Color(0xFF1B8B7A),
-            ),
-            onPressed: _sharePdf,
+            icon: const Icon(Icons.download, color: Color(0xFF1B8B7A)),
+            onPressed: _downloadPdf,
+            tooltip: 'Download',
           ),
+          if (_isRendered && _pages > 0)
+            Padding(
+              padding: const EdgeInsets.only(right: 12),
+              child: Center(
+                child: Text(
+                  '${_currentPage + 1}/$_pages',
+                  style: const TextStyle(
+                    color: Color(0xFF374151),
+                    fontSize: 14,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ),
+            ),
         ],
       ),
       body: Stack(
         children: [
-          // Check if file exists
-          if (!File(widget.pdfPath).existsSync())
-            const Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(
-                    Icons.description_outlined,
-                    size: 64,
-                    color: Color(0xFF9CA3AF),
-                  ),
-                  SizedBox(height: 16),
-                  Text(
-                    'File PDF tidak ditemukan',
-                    style: TextStyle(
-                      fontSize: 16,
-                      color: Color(0xFF6B7280),
-                    ),
-                  ),
-                  SizedBox(height: 8),
-                  Text(
-                    'Tanda terima belum dibuat atau telah dihapus',
-                    style: TextStyle(
-                      fontSize: 14,
-                      color: Color(0xFF9CA3AF),
-                    ),
-                  ),
-                ],
-              ),
-            )
-          else
-            PDFView(
-              filePath: widget.pdfPath,
-              enableSwipe: true,
-              swipeHorizontal: false,
-              autoSpacing: false,
-              pageFling: true,
-              pageSnap: true,
-              defaultPage: currentPage!,
-              fitPolicy: FitPolicy.BOTH,
-              preventLinkNavigation: false,
-              onRender: (pages) {
-                setState(() {
-                  this.pages = pages;
-                  isReady = true;
-                });
-              },
-              onError: (error) {
-                setState(() {
-                  errorMessage = error.toString();
-                });
-                print('PDF Error: $error');
-              },
-              onPageError: (page, error) {
-                setState(() {
-                  errorMessage = 'Error pada halaman $page: $error';
-                });
-                print('PDF Page Error: $page: $error');
-              },
-              onViewCreated: (PDFViewController pdfViewController) {
-                // PDF view created
-              },
-              onLinkHandler: (String? uri) {
-                print('Link pressed: $uri');
-              },
-              onPageChanged: (int? page, int? total) {
-                setState(() {
-                  currentPage = page;
-                });
-              },
-            ),
-          
-          // Loading indicator
-          if (!isReady && File(widget.pdfPath).existsSync())
+          PDFView(
+            filePath: widget.pdfPath,
+            enableSwipe: true,
+            swipeHorizontal: false,
+            autoSpacing: true,
+            pageFling: true,
+            pageSnap: true,
+            fitPolicy: FitPolicy.HEIGHT,
+            nightMode: false,
+            preventLinkNavigation: false,
+            onRender: (pages) {
+              setState(() {
+                _pages = pages ?? 0;
+                _isRendered = true;
+              });
+            },
+            onError: (error) {
+              CustomModals.showErrorModal(
+                context,
+                'Gagal membuka PDF: $error',
+              );
+            },
+            onPageError: (page, error) {
+              CustomModals.showErrorModal(
+                context,
+                'Error halaman $page: $error',
+              );
+            },
+            onPageChanged: (page, total) {
+              setState(() {
+                _currentPage = page ?? 0;
+              });
+            },
+          ),
+          if (!_isRendered)
             const Center(
               child: CircularProgressIndicator(
                 valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF1B8B7A)),
               ),
             ),
-          
-          // Error message
-          if (errorMessage.isNotEmpty)
-            Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const Icon(
-                    Icons.error_outline,
-                    size: 64,
-                    color: Colors.red,
-                  ),
-                  const SizedBox(height: 16),
-                  Text(
-                    'Error memuat PDF',
-                    style: const TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.w600,
-                      color: Color(0xFF374151),
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 20),
-                    child: Text(
-                      errorMessage,
-                      textAlign: TextAlign.center,
-                      style: const TextStyle(
-                        fontSize: 14,
-                        color: Color(0xFF6B7280),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  ElevatedButton(
-                    onPressed: () => Navigator.pop(context),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF1B8B7A),
-                    ),
-                    child: const Text(
-                      'Kembali',
-                      style: TextStyle(color: Colors.white),
-                    ),
-                  ),
-                ],
-              ),
-            ),
         ],
       ),
-      bottomNavigationBar: isReady && pages != null && pages! > 0
-          ? Container(
-              padding: const EdgeInsets.all(16),
-              decoration: const BoxDecoration(
-                color: Colors.white,
-                border: Border(
-                  top: BorderSide(color: Color(0xFFE5E7EB)),
-                ),
-              ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Text(
-                    'Halaman ${(currentPage ?? 0) + 1} dari $pages',
-                    style: const TextStyle(
-                      fontSize: 14,
-                      color: Color(0xFF6B7280),
-                    ),
-                  ),
-                ],
-              ),
-            )
-          : null,
-    );
-  }
-
-  void _sharePdf() {
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: Colors.transparent,
-      builder: (BuildContext context) {
-        return Container(
-          decoration: const BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.only(
-              topLeft: Radius.circular(20),
-              topRight: Radius.circular(20),
-            ),
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              // Handle bar
-              Container(
-                width: 40,
-                height: 4,
-                margin: const EdgeInsets.only(top: 12),
-                decoration: BoxDecoration(
-                  color: Colors.grey[300],
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
-              const SizedBox(height: 20),
-              
-              // Title
-              const Text(
-                'Pilih Aksi',
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w600,
-                  color: Color(0xFF374151),
-                ),
-              ),
-              const SizedBox(height: 20),
-              
-              // Download option
-              ListTile(
-                leading: Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF1B8B7A).withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: const Icon(
-                    Icons.download,
-                    color: Color(0xFF1B8B7A),
-                    size: 24,
-                  ),
-                ),
-                title: const Text(
-                  'Download ke Perangkat',
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-                subtitle: const Text(
-                  'Simpan PDF ke folder Download',
-                  style: TextStyle(
-                    fontSize: 14,
-                    color: Color(0xFF6B7280),
-                  ),
-                ),
-                onTap: () {
-                  Navigator.pop(context);
-                  _downloadPdf();
-                },
-              ),
-              
-              // Share option
-              ListTile(
-                leading: Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF1B8B7A).withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: const Icon(
-                    Icons.share,
-                    color: Color(0xFF1B8B7A),
-                    size: 24,
-                  ),
-                ),
-                title: const Text(
-                  'Bagikan ke Aplikasi Lain',
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-                subtitle: const Text(
-                  'Kirim melalui WhatsApp, Email, dll',
-                  style: TextStyle(
-                    fontSize: 14,
-                    color: Color(0xFF6B7280),
-                  ),
-                ),
-                onTap: () {
-                  Navigator.pop(context);
-                  _shareToOtherApps();
-                },
-              ),
-              
-              const SizedBox(height: 20),
-            ],
-          ),
-        );
-      },
     );
   }
 
   Future<void> _downloadPdf() async {
     try {
-      // Ensure permissions (show prompt to user)
-      if (Platform.isAndroid) {
-        final manage = await Permission.manageExternalStorage.request();
-        if (!manage.isGranted) {
-          final storage = await Permission.storage.request();
-          if (!storage.isGranted && !manage.isGranted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text('Izin penyimpanan ditolak. Buka Pengaturan dan aktifkan izin.'),
-                backgroundColor: Colors.red,
-                duration: Duration(seconds: 3),
-              ),
-            );
-            return;
-          }
+      final name = p.basename(widget.pdfPath);
+      final data = await File(widget.pdfPath).readAsBytes();
+      int sdkInt = 0;
+      try {
+        final v = await _channel.invokeMethod<int>('getSdkInt');
+        sdkInt = v ?? 0;
+      } catch (_) {}
+      if (Platform.isAndroid && sdkInt < 29) {
+        final status = await Permission.storage.request();
+        if (!status.isGranted) {
+          CustomModals.showErrorModal(
+            context,
+            'Izin penyimpanan ditolak. Aktifkan WRITE/READ untuk menyimpan file.',
+          );
+          return;
         }
       }
-
-      // Show loading
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Row(
-            children: [
-              SizedBox(
-                width: 20,
-                height: 20,
-                child: CircularProgressIndicator(
-                  strokeWidth: 2,
-                  valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                ),
-              ),
-              SizedBox(width: 16),
-              Text('Mengunduh PDF...'),
-            ],
-          ),
-          backgroundColor: Color(0xFF1B8B7A),
-          duration: Duration(seconds: 2),
-        ),
+      final res = await _channel.invokeMethod<Map<dynamic, dynamic>>(
+        'saveToDownloads',
+        {
+          'name': name,
+          'bytes': data,
+          'mime': 'application/pdf',
+        },
       );
-
-      // Read PDF bytes from the viewer's local file
-      final sourceFile = File(widget.pdfPath);
-      final bytes = await sourceFile.readAsBytes();
-
-      // Create filename with timestamp
-      final fileName = 'Tanda_Terima_${widget.title.replaceAll(RegExp(r'[^\w\s-]'), '')}_${DateTime.now().millisecondsSinceEpoch}';
-
-      String? savedPath;
-      // Try saving directly to public Downloads on Android (pre-Scoped Storage)
-      if (Platform.isAndroid) {
-        try {
-          final downloadsDir = Directory('/storage/emulated/0/Download');
-          if (await downloadsDir.exists()) {
-            final outPath = path.join(downloadsDir.path, '$fileName.pdf');
-            final outFile = File(outPath);
-            await outFile.writeAsBytes(bytes, flush: true);
-            savedPath = outPath;
-          }
-        } catch (_) {
-          // Fall back to FileSaver below
-        }
-      }
-
-      // Fallback or non-Android: use FileSaver (MediaStore/SAF)
-      savedPath ??= await FileSaver.instance.saveFile(
-        name: fileName,
-        bytes: bytes,
-        ext: 'pdf',
-        mimeType: MimeType.pdf,
-      );
-
-      // Show success message
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            savedPath == null || savedPath.isEmpty
-                ? 'PDF berhasil diunduh ke folder Download'
-                : 'PDF berhasil diunduh: ${savedPath!}'
-          ),
-          backgroundColor: Colors.green,
-          action: SnackBarAction(
-            label: 'Buka Folder',
-            textColor: Colors.white,
-            onPressed: () {
-              if (Platform.isAndroid) {
-                const channel = MethodChannel('com.dct.tracking/android_actions');
-                channel.invokeMethod('openDownloads');
-              }
-            },
-          ),
-        ),
-      );
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Gagal mengunduh PDF: ${e.toString()}'),
-          backgroundColor: Colors.red,
-        ),
-      );
-    }
-  }
-
-  Future<void> _shareToOtherApps() async {
-    try {
-      // Show loading
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Row(
-            children: [
-              SizedBox(
-                width: 20,
-                height: 20,
-                child: CircularProgressIndicator(
-                  strokeWidth: 2,
-                  valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                ),
-              ),
-              SizedBox(width: 16),
-              Text('Menyiapkan file untuk dibagikan...'),
-            ],
-          ),
-          backgroundColor: Color(0xFF1B8B7A),
-          duration: Duration(seconds: 1),
-        ),
-      );
-
-      // Share the PDF file
-      final result = await Share.shareXFiles(
-        [XFile(widget.pdfPath)],
-        text: 'Tanda Terima - ${widget.title}',
-        subject: 'Tanda Terima PDF',
-      );
-
-      if (result.status == ShareResultStatus.success) {
+      if (res != null) {
+        final uri = res['uri']?.toString();
+        final path = res['path']?.toString();
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('PDF berhasil dibagikan'),
-            backgroundColor: Colors.green,
-          ),
+          SnackBar(content: Text('PDF berhasil disimpan ${path ?? uri ?? ''}')),
         );
+        await _channel.invokeMethod('openDownloads');
+        return;
       }
+      CustomModals.showErrorModal(context, 'Gagal menyimpan PDF');
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Gagal membagikan PDF: ${e.toString()}'),
-          backgroundColor: Colors.red,
-        ),
+      CustomModals.showErrorModal(
+        context,
+        'Gagal menyimpan PDF: $e',
       );
     }
   }

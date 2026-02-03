@@ -234,6 +234,7 @@ class _DeliveryDetailPageState extends State<DeliveryDetailPage> {
       print('Error formatting date: $e');
     }
     
+    String displayCode = _resolveDisplayCode();
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -291,7 +292,7 @@ class _DeliveryDetailPageState extends State<DeliveryDetailPage> {
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             Text(
-              widget.deliveryCode,
+              displayCode,
               style: const TextStyle(
                 fontSize: 14,
                 color: Color(0xFF6B7280),
@@ -333,6 +334,22 @@ class _DeliveryDetailPageState extends State<DeliveryDetailPage> {
         ),
       ],
     );
+  }
+
+  String _resolveDisplayCode() {
+    final code = widget.deliveryCode;
+    final prefix = code.length >= 2 ? code.substring(0, 2).toUpperCase() : '';
+    if (prefix == 'TP' || prefix == 'TA' || prefix == 'TT') {
+      return code;
+    }
+    String? deliveryNo;
+    if (_deliveryData?.items.isNotEmpty == true) {
+      deliveryNo = _deliveryData!.items.first.deliveryNo;
+    }
+    if ((deliveryNo == null || deliveryNo.isEmpty) && _deliveryData?.consignees.isNotEmpty == true) {
+      deliveryNo = _deliveryData!.consignees.first.deliveryNo;
+    }
+    return deliveryNo ?? code;
   }
 
   Widget _buildItemsSection() {
@@ -605,9 +622,16 @@ class _DeliveryDetailPageState extends State<DeliveryDetailPage> {
       final receiptUrl = Config.getReceiptDownloadUrl(deliveryNo);
       print('🔍 DEBUG: DownloadTandaTerima URL: $receiptUrl');
       
-      // Fetch PDF bytes from ASHX handler
-      final uri = Uri.parse(receiptUrl);
-      final response = await http.get(uri).timeout(const Duration(seconds: 20));
+      final primaryUri = Uri.parse(receiptUrl);
+      http.Response response;
+      try {
+        response = await http.get(primaryUri).timeout(const Duration(seconds: 30));
+      } on TimeoutException {
+        final altUrl = Config.getAlternateReceiptDownloadUrl(deliveryNo);
+        print('🚧 DEBUG: Primary domain timeout, trying fallback: $altUrl');
+        final altUri = Uri.parse(altUrl);
+        response = await http.get(altUri).timeout(const Duration(seconds: 30));
+      }
       print('🔍 DEBUG: ASHX response status: ${response.statusCode}');
       print('🔍 DEBUG: ASHX response content-type: ${response.headers['content-type']}');
       

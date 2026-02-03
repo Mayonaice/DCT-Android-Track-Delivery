@@ -11,6 +11,7 @@ class StorageService {
   static const String _userDataKey = 'user_data';
   static const String _profileDataKey = 'profile_data';
   static const String _isLoggedInKey = 'is_logged_in';
+  static const String _testModeKey = 'test_mode';
 
   // Save login data
   Future<void> saveLoginData(Map<String, dynamic> loginData) async {
@@ -106,6 +107,11 @@ class StorageService {
     return prefs.getBool(_isLoggedInKey) ?? false;
   }
 
+  Future<bool> isTestMode() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getBool(_testModeKey) ?? false;
+  }
+
   // Check if token is expired
   Future<bool> isTokenExpired() async {
     final tokenExpires = await getTokenExpires();
@@ -127,6 +133,11 @@ class StorageService {
     await prefs.remove(_userDataKey);
     await prefs.remove(_profileDataKey);
     await prefs.setBool(_isLoggedInKey, false);
+  }
+
+  Future<void> setTestMode(bool enabled) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_testModeKey, enabled);
   }
 
   // Get user name

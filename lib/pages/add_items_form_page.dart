@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:io';
@@ -25,6 +26,7 @@ class _AddItemsFormPageState extends State<AddItemsFormPage> {
   final TextEditingController _jumlahBarangController = TextEditingController();
   final TextEditingController _serialNumberController = TextEditingController();
   final TextEditingController _deskripsiBarangController = TextEditingController();
+  final TextEditingController _barcodeController = TextEditingController();
   
   File? _selectedImage;
   List<File> _selectedImages = []; // New field for multiple photos
@@ -44,6 +46,7 @@ class _AddItemsFormPageState extends State<AddItemsFormPage> {
       _jumlahBarangController.text = widget.existingData!.jumlahBarang;
       _serialNumberController.text = widget.existingData!.serialNumber;
       _deskripsiBarangController.text = widget.existingData!.deskripsiBarang;
+      _barcodeController.text = widget.existingData!.barcode ?? '';
       _selectedImage = widget.existingData!.selectedImage;
       _selectedImages = List.from(widget.existingData!.selectedImages);
       _itemId = widget.existingData!.itemId;
@@ -74,6 +77,7 @@ class _AddItemsFormPageState extends State<AddItemsFormPage> {
     _jumlahBarangController.dispose();
     _serialNumberController.dispose();
     _deskripsiBarangController.dispose();
+    _barcodeController.dispose();
     super.dispose();
   }
 
@@ -363,6 +367,7 @@ class _AddItemsFormPageState extends State<AddItemsFormPage> {
     required String hintText,
     TextInputType? keyboardType,
     int? maxLines,
+    Widget? suffixIcon,
   }) {
     return TextField(
       controller: controller,
@@ -388,8 +393,48 @@ class _AddItemsFormPageState extends State<AddItemsFormPage> {
           borderSide: BorderSide(color: Color(0xFFE5E7EB)),
         ),
         contentPadding: const EdgeInsets.symmetric(vertical: 8, horizontal: 0),
+        suffixIcon: suffixIcon,
       ),
     );
+  }
+
+  Future<void> _openBarcodeScanner() async {
+    String? detected;
+    await showDialog(
+      context: context,
+      barrierDismissible: true,
+      builder: (ctx) {
+        bool handled = false;
+        return AlertDialog(
+          contentPadding: EdgeInsets.zero,
+          content: SizedBox(
+            width: 320,
+            height: 360,
+            child: MobileScanner(
+              onDetect: (capture) {
+                if (handled) return;
+                final barcodes = capture.barcodes;
+                if (barcodes.isNotEmpty) {
+                  final b = barcodes.first;
+                  final val = b.rawValue ?? '';
+                  final fmt = b.format;
+                  if (val.isNotEmpty && fmt != BarcodeFormat.qrCode) {
+                    handled = true;
+                    detected = val;
+                    Navigator.of(ctx).pop();
+                  }
+                }
+              },
+            ),
+          ),
+        );
+      },
+    );
+    if (detected != null && mounted) {
+      setState(() {
+        _barcodeController.text = detected!;
+      });
+    }
   }
 
   Widget _buildDeskripsiWithPhotoField() {
@@ -574,6 +619,26 @@ class _AddItemsFormPageState extends State<AddItemsFormPage> {
               hintText: 'Masukan Serial Number',
             ),
             const SizedBox(height: 20),
+
+            const Text(
+              'Barcode',
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w500,
+                color: Color(0xFF374151),
+              ),
+            ),
+            const SizedBox(height: 8),
+            _buildUnderlineTextField(
+              controller: _barcodeController,
+              hintText: 'Masukan Barcode (opsional)',
+              keyboardType: TextInputType.text,
+              suffixIcon: IconButton(
+                icon: const Icon(Icons.qr_code_scanner, color: Color(0xFF1B8B7A)),
+                onPressed: _openBarcodeScanner,
+              ),
+            ),
+            const SizedBox(height: 20),
             
             // Deskripsi Barang with circular photo placeholders
             const Text(
@@ -614,16 +679,17 @@ class _AddItemsFormPageState extends State<AddItemsFormPage> {
                     return;
                   }
                   
-                  // Buat object ItemData
-                  final itemData = ItemData(
-                    namaBarang: _namaBarangController.text,
-                    jumlahBarang: _jumlahBarangController.text,
-                    serialNumber: _serialNumberController.text,
-                    deskripsiBarang: _deskripsiBarangController.text,
-                    selectedImage: _selectedImage,
-                    selectedImages: _selectedImages,
-                    itemId: _itemId,
-                  );
+                // Buat object ItemData
+                final itemData = ItemData(
+                  namaBarang: _namaBarangController.text,
+                  jumlahBarang: _jumlahBarangController.text,
+                  serialNumber: _serialNumberController.text,
+                  deskripsiBarang: _deskripsiBarangController.text,
+                  barcode: _barcodeController.text.isNotEmpty ? _barcodeController.text : null,
+                  selectedImage: _selectedImage,
+                  selectedImages: _selectedImages,
+                  itemId: _itemId,
+                );
                   
                   // Simpan ke cache
                   await _saveToCache(itemData);

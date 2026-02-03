@@ -26,6 +26,7 @@ class ItemModel {
   final List<PhotoModel> photo;
   final String userInput;
   final String timeInput;
+  final String? barcode;
 
   ItemModel({
     required this.itemName,
@@ -35,6 +36,7 @@ class ItemModel {
     required this.photo,
     required this.userInput,
     required this.timeInput,
+    this.barcode,
   });
 
   Map<String, dynamic> toJson() {
@@ -46,6 +48,7 @@ class ItemModel {
       'Photo': photo.map((p) => p.toJson()).toList(),
       'UserInput': userInput,
       'TimeInput': timeInput,
+      'Barcode': barcode,
     };
   }
 }

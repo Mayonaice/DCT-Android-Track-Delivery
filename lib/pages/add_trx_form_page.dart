@@ -298,6 +298,7 @@ class _AddTrxFormPageState extends State<AddTrxFormPage> {
           photo: photos,
           userInput: userEmail,
           timeInput: currentTime,
+          barcode: itemData.barcode,
         ));
       }
       
@@ -846,14 +847,6 @@ class _AddTrxFormPageState extends State<AddTrxFormPage> {
                     fontSize: 18,
                     fontWeight: FontWeight.w600,
                     color: Color(0xFF374151),
-                  ),
-                ),
-                Text(
-                  '*',
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w600,
-                    color: Colors.red,
                   ),
                 ),
               ],

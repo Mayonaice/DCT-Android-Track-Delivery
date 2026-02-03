@@ -72,6 +72,7 @@ class DeliveryItem {
   final int qty;
   final String serialNumber;
   final String itemDescription;
+  final String? barcode;
   final String? deliveryNo;
   final String? userInput;
   final List<DeliveryPhoto> photo;
@@ -81,6 +82,7 @@ class DeliveryItem {
     required this.qty,
     required this.serialNumber,
     required this.itemDescription,
+    this.barcode,
     this.deliveryNo,
     this.userInput,
     required this.photo,
@@ -92,6 +94,7 @@ class DeliveryItem {
       qty: json['qty'] ?? 0,
       serialNumber: json['serialNumber'] ?? '',
       itemDescription: json['itemDescription'] ?? '',
+      barcode: json['barcode'],
       deliveryNo: json['deliveryNo'],
       userInput: json['userInput'],
       photo: (json['photo'] as List<dynamic>?)

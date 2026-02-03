@@ -473,7 +473,13 @@ class _ItemDetailPageState extends State<ItemDetailPage> {
                 label: 'Serial Number',
                 value: _itemData?.serialNumber?.isEmpty ?? true ? '-' : _itemData!.serialNumber,
               ),
-                      const SizedBox(height: 24),
+              const SizedBox(height: 16),
+
+              _buildReadOnlyTextField(
+                label: 'Barcode',
+                value: _itemData?.barcode?.isEmpty ?? true ? '-' : (_itemData!.barcode ?? '-'),
+              ),
+              const SizedBox(height: 24),
 
                       // Photo and Description Section
                       _buildPhotoSection(),

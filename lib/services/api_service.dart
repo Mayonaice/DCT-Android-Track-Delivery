@@ -988,7 +988,7 @@ class ApiService {
   // Login By Code API
   Future<LoginCodeResponse> loginByCode(String code) async {
     try {
-      final url = Uri.parse('http://10.10.0.223/LocalTrackingDelivery/api/Users/LoginByCode?Code=$code');
+      final url = Uri.parse('${Config.baseUrl}Users/LoginByCode?Code=$code');
       
       print('🔍 DEBUG: LoginByCode URL: $url');
       print('🔍 DEBUG: LoginByCode Code: $code');
@@ -1041,7 +1041,7 @@ class ApiService {
   // Get Transaction Detail API
   Future<DeliveryTransactionDetailResponse> getTransactionDetail(String deliveryCode, String token) async {
     try {
-      final url = Uri.parse('http://10.10.0.223/LocalTrackingDelivery/api/Transaction/Trx/Detail?DeliveryCode=$deliveryCode');
+      final url = Uri.parse('${Config.baseUrl}Transaction/Trx/Detail?DeliveryCode=$deliveryCode');
       
       print('🔍 DEBUG: TransactionDetail URL: $url');
       print('🔍 DEBUG: TransactionDetail DeliveryCode: $deliveryCode');

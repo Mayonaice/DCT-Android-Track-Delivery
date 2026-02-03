@@ -25,6 +25,119 @@ class _DeliveryStatusDetailPageState extends State<DeliveryStatusDetailPage> {
   List<DeliveryStatusDetailData> _statusData = [];
   String _errorMessage = '';
   int _maxStatusLevel = 1; // Untuk menentukan berapa icon yang aktif
+  Map<String, String> _photo64ByFilename = {};
+
+  String _normalizeDeliveryCode(String? deliveryCode) {
+    return (deliveryCode ?? '').trim().toLowerCase();
+  }
+
+  String _normalizePhotoFilename(String filename) {
+    var normalized = filename.replaceAll('/', '\\').trim().toLowerCase();
+    while (normalized.contains('\\\\')) {
+      normalized = normalized.replaceAll('\\\\', '\\');
+    }
+    return normalized;
+  }
+
+  String _buildPhotoKey(String? deliveryCode, String filename) {
+    final normalizedDeliveryCode = _normalizeDeliveryCode(deliveryCode);
+    final normalizedFilename = _normalizePhotoFilename(filename);
+    if (normalizedDeliveryCode.isEmpty) return normalizedFilename;
+    if (normalizedFilename.isEmpty) return normalizedDeliveryCode;
+    return '$normalizedDeliveryCode|$normalizedFilename';
+  }
+
+  Map<String, String> _buildPhoto64ByFilename(List<DeliveryStatusDetailData> statuses) {
+    final map = <String, String>{};
+    for (final status in statuses) {
+      for (final photo in status.photo) {
+        final photo64 = photo.photo64;
+        if (photo64.isEmpty) continue;
+        final key = _buildPhotoKey(status.deliveryCode, photo.filename);
+        if (key.isEmpty) continue;
+        map[key] = photo64;
+      }
+    }
+    return map;
+  }
+
+  StatusPhoto? _firstStatusPhotoWhereOrNull(
+    List<StatusPhoto> photos,
+    bool Function(StatusPhoto) test,
+  ) {
+    for (final photo in photos) {
+      if (test(photo)) return photo;
+    }
+    return null;
+  }
+
+  List<StatusPhoto> _selectPhotosForStatus(DeliveryStatusDetailData status) {
+    final desc = status.description.toLowerCase();
+    final wantsConfirm = desc.contains('konfirm');
+    final wantsReceive = desc.contains('terima');
+
+    List<StatusPhoto> candidates;
+    if (wantsConfirm) {
+      candidates = status.photo
+          .where((p) => p.filename.toLowerCase().contains('confirmitemsphoto'))
+          .toList();
+    } else if (wantsReceive) {
+      candidates = status.photo
+          .where((p) => p.filename.toLowerCase().contains('receiveitemsphoto'))
+          .toList();
+    } else {
+      candidates = status.photo.toList();
+    }
+    if (candidates.isEmpty) {
+      candidates = status.photo.toList();
+    }
+
+    final results = <StatusPhoto>[];
+    final seen = <String>{};
+
+    for (final photo in candidates) {
+      var photo64 = photo.photo64;
+      if (photo64.isEmpty) {
+        final key = _buildPhotoKey(status.deliveryCode, photo.filename);
+        photo64 = _photo64ByFilename[key] ?? '';
+      }
+      if (photo64.isEmpty) continue;
+
+      final normalizedFilename = _normalizePhotoFilename(photo.filename);
+      final uniqueKey = normalizedFilename.isNotEmpty ? normalizedFilename : photo64;
+      if (uniqueKey.isEmpty || seen.contains(uniqueKey)) continue;
+      seen.add(uniqueKey);
+
+      results.add(
+        StatusPhoto(
+          photo64: photo64,
+          filename: photo.filename,
+          description: photo.description,
+        ),
+      );
+    }
+
+    if (results.isNotEmpty) return results;
+
+    final fallback = _firstStatusPhotoWhereOrNull(status.photo, (p) => p.photo64.isNotEmpty) ??
+        (status.photo.isNotEmpty ? status.photo.first : null);
+    if (fallback == null) return [];
+
+    var fallbackPhoto64 = fallback.photo64;
+    if (fallbackPhoto64.isEmpty) {
+      final key = _buildPhotoKey(status.deliveryCode, fallback.filename);
+      fallbackPhoto64 = _photo64ByFilename[key] ?? '';
+    }
+    if (fallbackPhoto64.isEmpty) return [];
+
+    return [
+      StatusPhoto(
+        photo64: fallbackPhoto64,
+        filename: fallback.filename,
+        description: fallback.description,
+      ),
+    ];
+  }
 
   @override
   void initState() {
@@ -43,8 +156,10 @@ class _DeliveryStatusDetailPageState extends State<DeliveryStatusDetailPage> {
       final response = await apiService.getDeliveryStatusDetail(widget.deliveryCode, widget.token);
 
       if (response != null && response.ok && response.data.isNotEmpty) {
+        final reversed = response.data.reversed.toList();
         setState(() {
-          _statusData = response.data.reversed.toList(); // Reverse untuk urutan dari bawah ke atas
+          _statusData = reversed; // Reverse untuk urutan dari bawah ke atas
+          _photo64ByFilename = _buildPhoto64ByFilename(reversed);
           _maxStatusLevel = _calculateMaxStatusLevel(response.data);
           _isLoading = false;
         });
@@ -292,6 +407,7 @@ class _DeliveryStatusDetailPageState extends State<DeliveryStatusDetailPage> {
   }
 
   Widget _buildTimelineItem(DeliveryStatusDetailData data, {bool isLast = false}) {
+    final selectedPhotos = _selectPhotosForStatus(data);
     return IntrinsicHeight(
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -360,20 +476,20 @@ class _DeliveryStatusDetailPageState extends State<DeliveryStatusDetailPage> {
                   ),
                   const SizedBox(height: 8),
                   // Photo button - only show if photo exists
-                  if (data.photo.isNotEmpty)
+                  if (selectedPhotos.isNotEmpty)
                     Container(
                       decoration: BoxDecoration(
                         color: const Color(0xFFD1FAE5), // Light green background
                         borderRadius: BorderRadius.circular(6),
                       ),
                       child: InkWell(
-                        onTap: () => _showPhotoModal(data.photo),
+                        onTap: () => _showPhotoModal(selectedPhotos),
                         borderRadius: BorderRadius.circular(6),
                         child: const Padding(
                           padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                           child: Text(
                             'Lihat Foto',
-                            style: TextStyle(
+                            style: const TextStyle(
                               fontSize: 12,
                               color: Color(0xFF059669), // Green text
                               fontWeight: FontWeight.w500,

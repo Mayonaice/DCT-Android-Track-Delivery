@@ -5,6 +5,7 @@ class ItemData {
   final String jumlahBarang;
   final String serialNumber;
   final String deskripsiBarang;
+  final String? barcode;
   final File? selectedImage; // Keep for backward compatibility
   final List<File> selectedImages; // New field for multiple photos
   final String itemId; // Unique identifier for cache management
@@ -14,6 +15,7 @@ class ItemData {
     required this.jumlahBarang,
     required this.serialNumber,
     required this.deskripsiBarang,
+    this.barcode,
     this.selectedImage,
     List<File>? selectedImages,
     String? itemId,
@@ -26,6 +28,7 @@ class ItemData {
       'jumlahBarang': jumlahBarang,
       'serialNumber': serialNumber,
       'deskripsiBarang': deskripsiBarang,
+      'barcode': barcode,
       'imagePath': selectedImage?.path, // Keep for backward compatibility
       'imagesPaths': selectedImages.map((file) => file.path).toList(),
       'itemId': itemId,
@@ -50,6 +53,7 @@ class ItemData {
       jumlahBarang: json['jumlahBarang'] ?? '',
       serialNumber: json['serialNumber'] ?? '',
       deskripsiBarang: json['deskripsiBarang'] ?? '',
+      barcode: json['barcode'],
       selectedImage: images.isNotEmpty ? images.first : null, // For backward compatibility
       selectedImages: images,
       itemId: json['itemId'] ?? DateTime.now().millisecondsSinceEpoch.toString(),
