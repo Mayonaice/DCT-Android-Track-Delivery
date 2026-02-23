@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class StorageService {
@@ -12,9 +13,17 @@ class StorageService {
   static const String _profileDataKey = 'profile_data';
   static const String _isLoggedInKey = 'is_logged_in';
   static const String _testModeKey = 'test_mode';
+  static const String _loginEmailKey = 'login_email';
+  static const String _loginPasswordKey = 'login_password';
+
+  static const FlutterSecureStorage _secureStorage = FlutterSecureStorage();
 
   // Save login data
-  Future<void> saveLoginData(Map<String, dynamic> loginData) async {
+  Future<void> saveLoginData(
+    Map<String, dynamic> loginData, {
+    String? email,
+    String? password,
+  }) async {
     final prefs = await SharedPreferences.getInstance();
     
     print('🔍 DEBUG: Saving login data: $loginData');
@@ -61,6 +70,17 @@ class StorageService {
       // Save entire user data
       await prefs.setString(_userDataKey, jsonEncode(loginData));
       await prefs.setBool(_isLoggedInKey, true);
+
+      final resolvedEmail = (email?.trim().isNotEmpty ?? false)
+          ? email!.trim()
+          : (profileData?['userEmail']?.toString().trim() ?? '');
+      if (resolvedEmail.isNotEmpty) {
+        await prefs.setString(_loginEmailKey, resolvedEmail);
+      }
+
+      if (password != null && password.trim().isNotEmpty) {
+        await _secureStorage.write(key: _loginPasswordKey, value: password);
+      }
       
       print('✅ DEBUG: Login data saved successfully with token: ${tokenAccess.substring(0, 10)}...');
     } else {
@@ -132,6 +152,8 @@ class StorageService {
     await prefs.remove(_tokenExpiresKey);
     await prefs.remove(_userDataKey);
     await prefs.remove(_profileDataKey);
+    await prefs.remove(_loginEmailKey);
+    await _secureStorage.delete(key: _loginPasswordKey);
     await prefs.setBool(_isLoggedInKey, false);
   }
 
@@ -150,6 +172,17 @@ class StorageService {
   Future<String> getUserEmail() async {
     final profileData = await getProfileData();
     return profileData?['userEmail'] ?? '';
+  }
+
+  Future<String> getLoginEmail() async {
+    final prefs = await SharedPreferences.getInstance();
+    final saved = prefs.getString(_loginEmailKey);
+    if (saved != null && saved.trim().isNotEmpty) return saved.trim();
+    return getUserEmail();
+  }
+
+  Future<String?> getLoginPassword() async {
+    return _secureStorage.read(key: _loginPasswordKey);
   }
 
   // Get user phone

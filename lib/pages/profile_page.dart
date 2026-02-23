@@ -4,6 +4,8 @@ import 'package:image_picker/image_picker.dart';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
+import 'package:webview_flutter/webview_flutter.dart';
+import '../config/config.dart';
 import '../widgets/bottom_navigation_widget.dart';
 import '../services/api_service.dart';
 import '../services/storage_service.dart';
@@ -497,8 +499,57 @@ class _ProfilePageState extends State<ProfilePage> {
                                     // Ubah Password Menu
                                     _buildMenuItem(
                                       icon: 'assets/images/ubah-password-icon.png',
-                                      title: 'Ubah Password',
-                                      onTap: () {
+                                      title: 'Change Password',
+                                      onTap: () async {
+                                        final token = await _storageService.getToken();
+                                        if (token == null) {
+                                          CustomModals.showErrorModal(
+                                            context,
+                                            'Token tidak ditemukan, silakan login ulang',
+                                          );
+                                          return;
+                                        }
+
+                                        CustomModals.showLoadingModal(context, message: 'Memuat...');
+                                        final result = await _apiService.checkIfDct(token);
+                                        if (mounted) {
+                                          CustomModals.hideLoadingModal(context);
+                                        }
+
+                                        if (result['success'] == true &&
+                                            result['exists'] == true &&
+                                            (result['employeeCode']?.toString().trim().isNotEmpty ?? false)) {
+                                          final employeeCode = result['employeeCode'].toString().trim();
+                                          final base = Config.isTestMode
+                                              ? 'https://dev.advantagescm.com/adv/APP/changepassword.aspx'
+                                              : 'https://dctweb2.advantagescm.com/adv/APP/changepassword.aspx';
+                                          final url = '$base?userid=${Uri.encodeComponent(employeeCode)}';
+
+                                          if (!mounted) return;
+                                          Navigator.of(context).push(
+                                            MaterialPageRoute(
+                                              builder: (_) => ChangePasswordWebViewPage(
+                                                initialUrl: url,
+                                                token: token,
+                                              ),
+                                            ),
+                                          );
+                                          return;
+                                        }
+
+                                        if (result['success'] != true) {
+                                          if (!mounted) return;
+                                          CustomModals.showErrorModal(
+                                            context,
+                                            result['message'] ?? 'Gagal cek data DCT',
+                                            onOk: () {
+                                              Navigator.pushNamed(context, '/ubah-password');
+                                            },
+                                          );
+                                          return;
+                                        }
+
+                                        if (!mounted) return;
                                         Navigator.pushNamed(context, '/ubah-password');
                                       },
                                     ),
@@ -716,6 +767,214 @@ class _ProfilePageState extends State<ProfilePage> {
           photos: [photoData],
           title: 'Foto Profil',
         ),
+      ),
+    );
+  }
+}
+
+class ChangePasswordWebViewPage extends StatefulWidget {
+  final String initialUrl;
+  final String token;
+
+  const ChangePasswordWebViewPage({
+    Key? key,
+    required this.initialUrl,
+    required this.token,
+  }) : super(key: key);
+
+  @override
+  State<ChangePasswordWebViewPage> createState() => _ChangePasswordWebViewPageState();
+}
+
+class _ChangePasswordWebViewPageState extends State<ChangePasswordWebViewPage> {
+  late final WebViewController _controller;
+  bool _isLoading = true;
+  Timer? _successTimer;
+  bool _successModalShown = false;
+
+  Future<void> _injectChangePasswordHandler() async {
+    const script = '''
+(function() {
+  if (window.__dctChangePasswordHooked) return;
+  window.__dctChangePasswordHooked = true;
+  function postOkClicked() {
+    if (window.ChangePasswordChannel && window.ChangePasswordChannel.postMessage) {
+      window.ChangePasswordChannel.postMessage('ok_clicked');
+    }
+  }
+  function findClickable(el) {
+    var current = el;
+    while (current && current !== document) {
+      if (current.matches && current.matches('button, input[type="button"], input[type="submit"], a')) {
+        return current;
+      }
+      current = current.parentElement;
+    }
+    return null;
+  }
+  function attachClickListener(doc) {
+    if (!doc || doc.__dctOkHooked) return;
+    doc.__dctOkHooked = true;
+    doc.addEventListener('click', function(e) {
+      var target = findClickable(e.target) || e.target;
+      if (!target) return;
+      var label = (target.innerText || target.value || target.getAttribute && target.getAttribute('aria-label') || '').trim();
+      if (label === 'OK') {
+        postOkClicked();
+      }
+    }, true);
+  }
+  function hookIframes() {
+    var frames = document.querySelectorAll('iframe');
+    for (var i = 0; i < frames.length; i++) {
+      var frame = frames[i];
+      try {
+        var doc = frame.contentDocument || frame.contentWindow && frame.contentWindow.document;
+        if (doc) attachClickListener(doc);
+      } catch (_) {}
+    }
+  }
+  attachClickListener(document);
+  hookIframes();
+  var observer = new MutationObserver(function() {
+    hookIframes();
+  });
+  observer.observe(document.documentElement || document.body, { childList: true, subtree: true });
+  setInterval(hookIframes, 600);
+})();
+''';
+    await _controller.runJavaScript(script);
+  }
+
+  String _extractTextFromJsResult(Object? result) {
+    final raw = result?.toString() ?? '';
+    if (raw.length >= 2 && raw.startsWith('"') && raw.endsWith('"')) {
+      return raw.substring(1, raw.length - 1);
+    }
+    return raw;
+  }
+
+  bool _isSuccessText(String text) {
+    final lower = text.toLowerCase();
+    return lower.contains('password berhasil diubah') || lower.contains('success');
+  }
+
+  Future<void> _checkAndShowSuccessModal() async {
+    if (_successModalShown || !mounted) return;
+    try {
+      final result = await _controller.runJavaScriptReturningResult(
+        "document.body ? (document.body.innerText || '') : ''",
+      );
+      final text = _extractTextFromJsResult(result);
+      if (_isSuccessText(text)) {
+        _successModalShown = true;
+        _successTimer?.cancel();
+        if (!mounted) return;
+        CustomModals.showSuccessModal(
+          context,
+          'Password berhasil diubah',
+          onOk: () {
+            if (mounted) {
+              Navigator.of(context).pop();
+            }
+          },
+        );
+      }
+    } catch (_) {}
+  }
+
+  void _startSuccessPolling() {
+    _successTimer?.cancel();
+    _successTimer = Timer.periodic(const Duration(milliseconds: 800), (_) async {
+      await _checkAndShowSuccessModal();
+    });
+  }
+
+  @override
+  void dispose() {
+    _successTimer?.cancel();
+    super.dispose();
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    final uri = Uri.parse(widget.initialUrl);
+    final allowedHosts = {'dev.advantagescm.com', 'dctweb2.advantagescm.com'};
+    _controller = WebViewController()
+      ..setJavaScriptMode(JavaScriptMode.unrestricted)
+      ..addJavaScriptChannel(
+        'ChangePasswordChannel',
+        onMessageReceived: (message) {
+          if (!mounted) return;
+          if (message.message == 'ok_clicked') {
+            Navigator.of(context).pop();
+          }
+        },
+      )
+      ..setNavigationDelegate(
+        NavigationDelegate(
+          onPageStarted: (_) {
+            if (!mounted) return;
+            setState(() {
+              _isLoading = true;
+            });
+          },
+          onPageFinished: (_) {
+            if (!mounted) return;
+            setState(() {
+              _isLoading = false;
+            });
+            _injectChangePasswordHandler();
+            _startSuccessPolling();
+          },
+          onWebResourceError: (_) {
+            if (!mounted) return;
+            setState(() {
+              _isLoading = false;
+            });
+          },
+        ),
+      )
+      ..loadRequest(
+        uri,
+        headers: allowedHosts.contains(uri.host)
+            ? <String, String>{'Authorization': 'Bearer ${widget.token}'}
+            : <String, String>{},
+      );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: const Color(0xFFF8FAFF),
+      appBar: AppBar(
+        backgroundColor: const Color(0xFFF8FAFF),
+        elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back, color: Color(0xFF1B8B7A)),
+          onPressed: () => Navigator.of(context).pop(),
+        ),
+        title: const Text(
+          'Change Password',
+          style: TextStyle(
+            color: Color(0xFF1B8B7A),
+            fontSize: 18,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        centerTitle: false,
+      ),
+      body: Stack(
+        children: [
+          WebViewWidget(controller: _controller),
+          if (_isLoading)
+            const Center(
+              child: CircularProgressIndicator(
+                valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF1B8B7A)),
+              ),
+            ),
+        ],
       ),
     );
   }

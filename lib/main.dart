@@ -250,7 +250,11 @@ class _LoginPageState extends State<LoginPage> {
 
       if (result['success']) {
         // Save login data
-        await _storageService.saveLoginData(result['data']);
+        await _storageService.saveLoginData(
+          result['data'],
+          email: email,
+          password: password,
+        );
 
         CustomModals.showSuccessModal(
           context,

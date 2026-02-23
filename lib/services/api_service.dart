@@ -457,6 +457,57 @@ class ApiService {
     }
   }
 
+  Future<Map<String, dynamic>> checkIfDct(String token) async {
+    try {
+      final response = await get('Users/check-if-dct', token: token);
+      if (response['success'] != true) {
+        return response;
+      }
+
+      final apiResponse = response['data'];
+      if (apiResponse is! Map<String, dynamic>) {
+        return {
+          'success': false,
+          'message': 'Response server tidak valid',
+          'data': apiResponse,
+        };
+      }
+
+      final ok = apiResponse['ok'] == true;
+      if (!ok) {
+        return {
+          'success': false,
+          'message': apiResponse['message'] ?? 'Request gagal',
+          'data': apiResponse,
+        };
+      }
+
+      final data = apiResponse['data'];
+      if (data is! Map<String, dynamic>) {
+        return {
+          'success': false,
+          'message': 'Response data server tidak valid',
+          'data': apiResponse,
+        };
+      }
+
+      return {
+        'success': true,
+        'exists': data['exists'] == true,
+        'employeeCode': data['employeeCode']?.toString(),
+        'data': apiResponse,
+      };
+    } catch (e) {
+      return {
+        'success': false,
+        'message': e is TimeoutException
+            ? 'Koneksi Timeout, harap hubungi tim IT'
+            : 'Terjadi kesalahan saat cek DCT: ${e.toString()}',
+        'data': null,
+      };
+    }
+  }
+
   // Helper function to truncate base64 values
   String _truncateBase64(dynamic value) {
     if (value is String && value.length > 100) {

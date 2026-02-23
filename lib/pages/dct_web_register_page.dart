@@ -77,7 +77,11 @@ class _DctWebRegisterPageState extends State<DctWebRegisterPage> {
         // Save login data (same as login flow)
         print('🔍 DEBUG: Saving login data to storage...');
         try {
-          await _storageService.saveLoginData(result['data']);
+          await _storageService.saveLoginData(
+            result['data'],
+            email: username,
+            password: password,
+          );
           print('✅ DEBUG: Login data saved successfully to storage');
         } catch (e) {
           print('🚨 DEBUG: Failed to save login data to storage: $e');
@@ -354,11 +358,68 @@ class _ForgotPasswordWebViewPageState extends State<ForgotPasswordWebViewPage> {
   late final WebViewController _controller;
   bool _isLoading = true;
 
+  Future<void> _injectForgotPasswordHandler() async {
+    const script = '''
+(function() {
+  if (window.__dctForgotPasswordHooked) return;
+  window.__dctForgotPasswordHooked = true;
+  function postGoRegister() {
+    if (window.ForgotPasswordChannel && window.ForgotPasswordChannel.postMessage) {
+      window.ForgotPasswordChannel.postMessage('go_register');
+    }
+  }
+  function findClickable(el) {
+    var current = el;
+    while (current && current !== document) {
+      if (current.matches && current.matches('button, input[type="button"], input[type="submit"], a')) {
+        return current;
+      }
+      current = current.parentElement;
+    }
+    return null;
+  }
+  document.addEventListener('click', function(e) {
+    var target = findClickable(e.target) || e.target;
+    if (!target) return;
+    var label = (target.innerText || target.value || target.getAttribute && target.getAttribute('aria-label') || '').trim();
+    if (label === 'OK') {
+      postGoRegister();
+    }
+  }, true);
+  var originalAlert = window.alert;
+  window.alert = function(msg) {
+    try { postGoRegister(); } catch (_) {}
+    if (originalAlert) return originalAlert.apply(window, arguments);
+  };
+  var originalConfirm = window.confirm;
+  window.confirm = function(msg) {
+    try { postGoRegister(); } catch (_) {}
+    if (originalConfirm) return originalConfirm.apply(window, arguments);
+    return true;
+  };
+})();
+''';
+    await _controller.runJavaScript(script);
+  }
+
   @override
   void initState() {
     super.initState();
     _controller = WebViewController()
       ..setJavaScriptMode(JavaScriptMode.unrestricted)
+      ..addJavaScriptChannel(
+        'ForgotPasswordChannel',
+        onMessageReceived: (message) {
+          if (!mounted) return;
+          if (message.message == 'go_register') {
+            Navigator.of(context).pushReplacement(
+              MaterialPageRoute(
+                builder: (_) => const DctWebRegisterPage(),
+              ),
+            );
+          }
+        },
+      )
       ..setNavigationDelegate(
         NavigationDelegate(
           onPageStarted: (_) {
@@ -372,6 +433,7 @@ class _ForgotPasswordWebViewPageState extends State<ForgotPasswordWebViewPage> {
             setState(() {
               _isLoading = false;
             });
+            _injectForgotPasswordHandler();
           },
           onWebResourceError: (_) {
             if (!mounted) return;
