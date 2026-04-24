@@ -1376,6 +1376,12 @@ class ApiService {
             'message': 'No profile image found',
           };
         }
+      } else if (response.statusCode == 204 || response.statusCode == 404) {
+        print('ℹ️ DEBUG: Profile image is not set for this user');
+        return {
+          'success': false,
+          'message': 'No profile image found',
+        };
       } else {
         print('❌ DEBUG: Failed to get profile image - Status: ${response.statusCode}');
         return {
