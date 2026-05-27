@@ -27,6 +27,12 @@ class _PhotoPreviewPageState extends State<PhotoPreviewPage> {
   final PhotoCacheService _photoCacheService = PhotoCacheService();
   final ImagePicker _picker = ImagePicker();
   static const int maxPhotos = 10;
+  static const int _maxUploadSizeBytes = 2 * 1024 * 1024;
+
+  Future<bool> _isFileTooLarge(File file) async {
+    final fileSize = await file.length();
+    return fileSize > _maxUploadSizeBytes;
+  }
   
   @override
   void initState() {
@@ -190,13 +196,10 @@ class _PhotoPreviewPageState extends State<PhotoPreviewPage> {
         return;
       }
       
-      // Check file size (max 5MB)
-      final fileSizeInMB = await _photoCacheService.getFileSizeInMB(originalFile);
-      if (fileSizeInMB > 5.0) {
-        Navigator.of(context).pop(); // Close loading dialog
+      if (await _isFileTooLarge(originalFile)) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Ukuran file terlalu besar. Maksimal 5MB.'),
+            content: Text('Ukuran file terlalu besar, Maks 2MB'),
             backgroundColor: Colors.red,
           ),
         );
@@ -257,6 +260,19 @@ class _PhotoPreviewPageState extends State<PhotoPreviewPage> {
     if (_capturedImages.isEmpty) {
       Navigator.pop(context, <File>[]);
       return;
+    }
+
+    for (final image in _capturedImages) {
+      if (await _isFileTooLarge(image)) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Ukuran file terlalu besar, Maks 2MB'),
+            backgroundColor: Colors.red,
+          ),
+        );
+        return;
+      }
     }
     
     // Save to cache before returning

@@ -42,6 +42,7 @@ class TaTpDeliveryPage extends StatefulWidget {
 }
 
 class _TaTpDeliveryPageState extends State<TaTpDeliveryPage> {
+  static const int _maxUploadSizeBytes = 2 * 1024 * 1024;
   final ApiService _apiService = ApiService();
   final StorageService _storageService = StorageService();
   final ImagePicker _picker = ImagePicker();
@@ -51,6 +52,11 @@ class _TaTpDeliveryPageState extends State<TaTpDeliveryPage> {
   bool _isLoading = true;
   String? _errorMessage;
   List<File> _selectedImages = [];
+
+  Future<bool> _isFileTooLarge(File file) async {
+    final fileSize = await file.length();
+    return fileSize > _maxUploadSizeBytes;
+  }
 
   // Helper: treat sentinel or empty date string as null/empty
   bool _isNullishDate(String? value) {
@@ -278,6 +284,14 @@ class _TaTpDeliveryPageState extends State<TaTpDeliveryPage> {
         }
         
         final File imageFile = File(image.path);
+
+        if (await _isFileTooLarge(imageFile)) {
+          CustomModals.showErrorModal(
+            context,
+            'Ukuran file terlalu besar, Maks 2MB',
+          );
+          return;
+        }
         
         // Add watermark to the image if it's from camera
         File finalImageFile = imageFile;
@@ -285,6 +299,14 @@ class _TaTpDeliveryPageState extends State<TaTpDeliveryPage> {
           print('🔍 DEBUG: Adding watermark to camera image...');
           finalImageFile = await WatermarkService.addWatermarkToImage(imageFile);
           print('🔍 DEBUG: Watermark added successfully');
+        }
+
+        if (await _isFileTooLarge(finalImageFile)) {
+          CustomModals.showErrorModal(
+            context,
+            'Ukuran file terlalu besar, Maks 2MB',
+          );
+          return;
         }
         
         if (source == ImageSource.camera) {
@@ -369,6 +391,14 @@ class _TaTpDeliveryPageState extends State<TaTpDeliveryPage> {
       List<Map<String, String>> photoList = [];
       
       for (int i = 0; i < _selectedImages.length; i++) {
+        if (await _isFileTooLarge(_selectedImages[i])) {
+          CustomModals.showErrorModal(
+            context,
+            'Ukuran file terlalu besar, Maks 2MB',
+          );
+          return false;
+        }
+
         final base64Image = await _convertImageToBase64(_selectedImages[i]);
         if (base64Image == null) {
           print('🚨 DEBUG: Failed to convert image ${i + 1} to base64');

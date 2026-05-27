@@ -23,6 +23,7 @@ class ProfilePage extends StatefulWidget {
 }
 
 class _ProfilePageState extends State<ProfilePage> {
+  static const int _maxUploadSizeBytes = 2 * 1024 * 1024;
   final ApiService _apiService = ApiService();
   final StorageService _storageService = StorageService();
   final ImagePicker _picker = ImagePicker();
@@ -32,6 +33,11 @@ class _ProfilePageState extends State<ProfilePage> {
   String _errorMessage = '';
   Uint8List? _profileImageBytes;
   File? _selectedImage;
+
+  Future<bool> _isFileTooLarge(File file) async {
+    final fileSize = await file.length();
+    return fileSize > _maxUploadSizeBytes;
+  }
 
   @override
   void initState() {
@@ -131,9 +137,18 @@ class _ProfilePageState extends State<ProfilePage> {
           );
           return;
         }
+
+        final imageFile = File(image.path);
+        if (await _isFileTooLarge(imageFile)) {
+          CustomModals.showErrorModal(
+            context,
+            'Ukuran file terlalu besar, Maks 2MB',
+          );
+          return;
+        }
         
         setState(() {
-          _selectedImage = File(image.path);
+          _selectedImage = imageFile;
         });
         await _uploadProfileImage();
       }

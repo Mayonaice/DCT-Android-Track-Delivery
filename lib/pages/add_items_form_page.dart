@@ -22,6 +22,7 @@ class AddItemsFormPage extends StatefulWidget {
 }
 
 class _AddItemsFormPageState extends State<AddItemsFormPage> {
+  static const int _maxUploadSizeBytes = 2 * 1024 * 1024;
   final TextEditingController _namaBarangController = TextEditingController();
   final TextEditingController _jumlahBarangController = TextEditingController();
   final TextEditingController _serialNumberController = TextEditingController();
@@ -33,6 +34,11 @@ class _AddItemsFormPageState extends State<AddItemsFormPage> {
   String _itemId = ''; // Unique identifier for cache management
   final ImagePicker _picker = ImagePicker();
   final PhotoCacheService _photoCacheService = PhotoCacheService();
+
+  Future<bool> _isFileTooLarge(File file) async {
+    final fileSize = await file.length();
+    return fileSize > _maxUploadSizeBytes;
+  }
 
   @override
   void initState() {
@@ -254,6 +260,14 @@ class _AddItemsFormPageState extends State<AddItemsFormPage> {
         print('🔍 DEBUG: Created File object: ${imageFile.path}');
         print('🔍 DEBUG: File exists: ${await imageFile.exists()}');
         print('🔍 DEBUG: File size: ${await imageFile.length()} bytes');
+
+        if (await _isFileTooLarge(imageFile)) {
+          CustomModals.showErrorModal(
+            context,
+            'Ukuran file terlalu besar, Maks 2MB',
+          );
+          return;
+        }
         
         // Add watermark to the image if it's from camera
         File finalImageFile = imageFile;
@@ -294,6 +308,14 @@ class _AddItemsFormPageState extends State<AddItemsFormPage> {
               Navigator.of(context).pop();
             }
           }
+        }
+
+        if (await _isFileTooLarge(finalImageFile)) {
+          CustomModals.showErrorModal(
+            context,
+            'Ukuran file terlalu besar, Maks 2MB',
+          );
+          return;
         }
         
         if (source == ImageSource.camera) {
@@ -677,6 +699,16 @@ class _AddItemsFormPageState extends State<AddItemsFormPage> {
                       'Minimal 1 foto barang harus ditambahkan',
                     );
                     return;
+                  }
+
+                  for (final image in _selectedImages) {
+                    if (await _isFileTooLarge(image)) {
+                      CustomModals.showErrorModal(
+                        context,
+                        'Ukuran file terlalu besar, Maks 2MB',
+                      );
+                      return;
+                    }
                   }
                   
                 // Buat object ItemData
